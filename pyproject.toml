@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "swa-data-tool"
+version = "2.0.0"
+description = "SWA Data Analysis Tool - automated, self-verifying data analysis for NGOs and organisations"
+requires-python = ">=3.10"
+dependencies = ["pandas>=2.0", "numpy>=1.24", "openpyxl>=3.1", "XlsxWriter>=3.1", "PyYAML>=6.0", "matplotlib>=3.7", "Flask>=3.0", "waitress>=3.0"]
+
+[project.scripts]
+swa-tool = "swa_data_tool.cli:main"
+
+[tool.setuptools]
+packages = ["swa_data_tool"]
+
+[tool.setuptools.package-data]
+swa_data_tool = ["templates/*"]

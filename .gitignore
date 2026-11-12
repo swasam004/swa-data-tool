@@ -1,0 +1,5 @@
+outputs/
+inbox/
+__pycache__/
+*.bak
+.pytest_cache/

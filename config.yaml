@@ -1,0 +1,167 @@
+# ===================================================================
+#  SWA Data Analysis Tool - NGO / programme data example
+#  (KoboToolbox-style beneficiary register). Describe your data ONCE.
+# ===================================================================
+dataset_name: "Youth Programme - Beneficiary Register"
+organisation: "Your Organisation Name"
+
+folders: {inbox: inbox, outputs: outputs}
+file_patterns: ["*.csv", "*.xlsx", "*.json"]
+
+read:
+  delimiter: ","            # KoboToolbox "CSV" exports often use ";" - change here if so
+  header_row: 0
+
+# PERSONAL DATA PROTECTION: used for `pii: hash`. Replace with your own long secret phrase
+# and keep it private. Changing it later changes every code.
+privacy_salt: "replace-this-with-a-long-secret-phrase"
+
+max_quarantine_pct: 10
+
+columns:
+  - name: Record ID
+    source: "_id"                         # exact header in the Kobo export
+    type: text
+    required: true
+    unique: true                          # a repeated submission is rejected
+
+  - name: Beneficiary ID
+    source: "group_reg/beneficiary_code"
+    type: text
+    required: true                        # NOT unique: one person can join several programmes
+
+  - name: Full Name
+    source: "group_reg/full_name"
+    type: text
+    pii: hash                             # outputs show a code, never the name
+
+  - name: Phone
+    source: "group_reg/phone"
+    type: text
+    pii: mask                             # outputs show only the last 3 digits
+
+  - name: Sex
+    source: "group_demo/sex"
+    type: category
+    required: true
+    mapping: {f: Female, m: Male}         # fixes short codes
+    case: title
+    allowed: [Female, Male]
+
+  - name: Age
+    source: "group_demo/age"
+    type: number
+    integer: true
+    required: true
+    min: 5
+    max: 100
+    bands:                                # creates the category "Age Group"
+      name: Age Group
+      edges: [10, 15, 18, 25, 35]         # 10-14, 15-17, 18-24, 25-34, 35+
+
+  - name: Ward
+    source: ward
+    type: category
+    required: true
+    case: title
+    allowed: [Ward A, Ward B, Ward C, Ward D]
+
+  - name: Programme
+    source: programme
+    type: category
+    required: true
+    allowed: [Mentorship, Financial Literacy, Vocational Skills]
+
+  - name: Date
+    source: "_submission_time"
+    type: date
+    required: true
+    date_formats: ["%Y-%m-%d"]            # Kobo timestamps like 2025-03-05T10:22:11 are accepted too
+    min_date: 2025-01-01
+    max_date: 2025-12-31
+
+  - name: Sessions Attended
+    source: sessions_attended
+    type: number
+    integer: true
+    min: 0
+    max: 52
+
+  - name: Completed Training
+    source: completed_training
+    type: category
+    mapping: {"y": "Yes", "n": "No", "yes": "Yes", "no": "No"}
+    allowed: ["Yes", "No"]
+
+  - name: Income Sources                  # Kobo "select_multiple": answers separated by a space
+    source: income_sources
+    type: multiselect
+    separator: " "
+    options: [farming, small_business, casual_labour, remittances, none]
+
+  - name: Monthly Income
+    source: monthly_income_kes
+    type: number
+    min: 0
+    decimals: 0
+
+pivots:
+  - name: Participations by Programme and Sex
+    rows: Programme
+    columns: Sex
+    agg: count_rows
+    percent_of: row                       # also shows each row as % of its total
+    chart: column
+
+  - name: Unique Beneficiaries by Ward and Sex
+    rows: Ward
+    columns: Sex
+    values: Beneficiary ID
+    agg: count_unique                     # people, not records
+    chart: column_stacked
+
+  - name: Participations by Month
+    rows: Date (Month)
+    agg: count_rows
+    chart: line
+
+  - name: Average Sessions by Programme
+    rows: Programme
+    values: Sessions Attended
+    agg: mean
+    chart: bar
+    sort: value_desc
+
+  - name: Casual Labour Reported by Age Group
+    rows: Age Group
+    values: "Income Sources: casual_labour"
+    agg: sum                              # 1 = chose it, 0 = did not
+    chart: column
+
+indicators:
+  - name: Youth (15-24) training completion rate
+    description: Share of youth beneficiaries with at least one completed training
+    type: percent
+    where: [{column: Completed Training, equals: "Yes"}]
+    among: [{column: Age Group, in: ["15-17", "18-24"]}]
+    unique_by: Beneficiary ID
+    disaggregate_by: [Sex, Ward]
+
+  - name: Unique beneficiaries reached
+    type: count_unique
+    values: Beneficiary ID
+    disaggregate_by: [Sex, Age Group, Ward]
+
+  - name: Total participations
+    type: count
+    disaggregate_by: [Programme, Sex]
+
+  - name: Average monthly income (KES)
+    type: mean
+    values: Monthly Income
+    disaggregate_by: [Sex]
+
+  - name: Records reporting casual labour income
+    type: percent
+    where: [{column: "Income Sources: casual_labour", equals: 1}]
+    disaggregate_by: [Sex]

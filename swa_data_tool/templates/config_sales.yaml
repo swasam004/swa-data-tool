@@ -1,0 +1,115 @@
+# ===================================================================
+#  SWA Data Analysis Tool configuration  -  describe your data ONCE, here.
+#  Every unknown setting is rejected, so typos cannot silently switch
+#  a safety check off.
+# ===================================================================
+dataset_name: "Sales Analysis"
+
+folders:
+  inbox: inbox          # drop files here (used by 'watch' / 'scan')
+  outputs: outputs      # one dated sub-folder is created per run
+
+file_patterns: ["*.csv", "*.xlsx", "*.json"]
+
+read:
+  encoding: utf-8-sig   # CSV only (falls back to cp1252 with a warning)
+  delimiter: ","        # use ";" for semicolon CSVs
+  excel_sheet: 0        # sheet number (0 = first) or sheet name
+  header_row: 0         # 0 = column names are on the first row
+
+# Text treated as "no value" (case-insensitive). Empty is always missing.
+missing_tokens: ["", "na", "n/a", "nan", "null", "none", "-", "--"]
+
+# Stripped from the START or END of numbers, e.g. "KES 1,200".
+currency_symbols: ["KES", "KSh", "Ksh", "USD", "$", "£", "€"]
+
+# Stop trusting the run if more than this % of rows had to be rejected.
+max_quarantine_pct: 10
+
+# Pivot cells are live Excel formulas up to this many rows (a second,
+# independent calculation inside Excel). Above it they are fixed values.
+excel_formulas_max_rows: 20000
+
+# -------------------------------------------------------------------
+# COLUMNS - every column you want analysed, in any order.
+#   type: text | category | number | date
+#   category = a field you want to GROUP BY in pivots
+#   required: true  -> a row with this value missing is rejected
+#   unique:  true   -> a repeated value (e.g. duplicate Order ID) is rejected
+# -------------------------------------------------------------------
+columns:
+  - name: Order ID
+    type: text
+    required: true
+    unique: true
+
+  - name: Date
+    type: date
+    required: true
+    date_formats: ["%d/%m/%Y"]     # day/month/year. The tool never guesses.
+    min_date: 2024-01-01
+    max_date: 2026-12-31
+
+  - name: Region
+    type: category
+    required: true
+    case: title                    # "nairobi" and "NAIROBI" -> "Nairobi"
+    allowed: [North, South, East, West]
+
+  - name: Product
+    type: category
+    required: true
+    case: title
+
+  - name: Units
+    type: number
+    integer: true
+    min: 0
+
+  - name: Revenue
+    type: number
+    required: true
+    min: 0
+    decimals: 2
+
+# -------------------------------------------------------------------
+# PIVOTS
+#   rows:    ONE category column (or "<Date column> (Month)", "(Quarter)", "(Year)")
+#   columns: optional, ONE category column
+#   agg:     sum | mean | count | count_rows | min | max | median
+#   values:  number column (not used with count_rows)
+#   chart:   column | column_stacked | bar | line | pie | none
+#   sort:    label | value_desc | value_asc
+# -------------------------------------------------------------------
+pivots:
+  - name: Revenue by Region and Product
+    rows: Region
+    columns: Product
+    values: Revenue
+    agg: sum
+    chart: column
+
+  - name: Monthly Revenue
+    rows: Date (Month)
+    values: Revenue
+    agg: sum
+    chart: line
+
+  - name: Revenue Share by Region
+    rows: Region
+    values: Revenue
+    agg: sum
+    chart: pie
+    sort: value_desc
+
+  - name: Average Sale by Product
+    rows: Product
+    values: Revenue
+    agg: mean
+    chart: bar
+    sort: value_desc
+
+  - name: Orders per Region
+    rows: Region
+    agg: count_rows
+    chart: column

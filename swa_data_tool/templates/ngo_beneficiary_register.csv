@@ -1,0 +1,250 @@
+_id,group_reg/beneficiary_code,group_reg/full_name,group_reg/phone,group_demo/sex,group_demo/age,ward,programme,_submission_time,sessions_attended,completed_training,income_sources,monthly_income_kes
+10024,B-0013,Allan Ouma,0719824854,male,14,Ward D,Vocational Skills,2025-06-24T14:15:00,12,yes,farming,25000
+10117,B-0057,Naomi Otieno,0743352343,female,17,Ward C,Financial Literacy,2025-05-14T10:30:00,7,yes,none,0
+10027,B-0015,Naomi Ouma,0752110478,F,21,Ward C,Vocational Skills,2025-05-10T17:58:00,12,yes,none,3000
+10220,B-0106,Ruth Kamau,0779328247,female,20,Ward D,Vocational Skills,2025-07-21T15:32:00,3,yes,small_business remittances,40000
+10198,B-0095,Victor Onyango,0730060604,Unknown,20,Ward B,Mentorship,2025-01-01T12:36:00,7,no,none,12000
+10144,B-0068,Lucy Njeri,0771561748,female,25,Ward A,Vocational Skills,2025-04-09T15:34:00,1,yes,farming small_business,15000
+10020,B-0012,Linet Kamau,0780490681,female,200,Ward C,Mentorship,2025-06-07T16:47:00,7,yes,none,12000
+10060,B-0031,Moses Otieno,0719437596,male,17,Ward D,Vocational Skills,2025-06-02T10:25:00,2,yes,none,12000
+10225,B-0109,Allan Akinyi,0738163874,male,17,Ward A,Mentorship,2025-05-03T12:08:00,11,no,farming fishing,12000
+10034,B-0018,Dennis Mutua,0713028344,male,25,Ward C,Vocational Skills,2025-05-10T13:16:00,11,no,casual_labour,8000
+10004,B-0002,Lucy Ouma,0717784483,female,27,Ward B,Financial Literacy,2025-13-45T10:00:00,5,yes,small_business farming,3000
+10068,B-0034,Kevin Odhiambo,0723715389,male,34,Ward C,Financial Literacy,2025-08-06T08:59:00,12,yes,none,5000
+10240,B-0116,Victor Achieng,0762734062,male,23,Ward A,Mentorship,2025-02-23T13:31:00,twelve,yes,farming,0
+10122,B-0059,Ruth Mutua,0792212100,female,27,Ward B,Mentorship,2025-06-11T12:27:00,5,no,small_business,12000
+10220,B-0107,Felix Achieng,0783695801,male,17,Ward C,Financial Literacy,2025-02-22T12:47:00,12,no,farming casual_labour,0
+10217,B-0105,Ruth Otieno,0775202710,female,19,Ward A,Financial Literacy,2025-07-07T13:15:00,6,yes,casual_labour,12000
+10127,B-0061,Hassan Wanjiru,0770066221,male,15,ward a,Vocational Skills,2025-02-07T15:40:00,12,yes,none,3000
+10233,B-0113,Allan Odhiambo,0765858894,male,22,Ward D,Vocational Skills,2025-06-14T16:47:00,11,yes,casual_labour,40000
+10119,B-0057,Naomi Otieno,0743352343,female,17,Ward C,Vocational Skills,2025-03-27T17:31:00,10,,remittances,40000
+10229,B-0111,Kevin Mutua,0741055781,male,26,Ward D,Financial Literacy,2025-05-05T16:19:00,10,yes,farming,5000
+10200,B-0096,Naomi Akinyi,0777852569,female,15,Ward A,Mentorship,2025-09-08T14:23:00,8,no,none,"KES 8,000"
+10189,B-0091,Kevin Onyango,0747437199,male,27,Ward B,Financial Literacy,2025-03-28T13:35:00,5,no,none,12000
+10035,B-0018,Dennis Mutua,0713028344,male,25,Ward C,Mentorship,2025-08-08T11:15:00,2,no,none,8000
+10072,B-0036,Peter Njeri,0713629581,male,27,Ward C,Financial Literacy,2025-03-14T16:38:00,10,yes,none,25000
+10054,B-0026,Peter Njeri,0792891895,male,31,Ward A,Mentorship,2025-08-15T15:48:00,9,no,none,5000
+10041,B-0021,Faith Onyango,0763907779,female,28,Ward C,Mentorship,2025-01-27T13:11:00,9,no,remittances,3000
+10234,B-0113,Allan Odhiambo,0765858894,male,22,Ward D,Mentorship,2025-09-02T16:54:00,12,yes,small_business remittances,40000
+10064,B-0032,Joy Mutua,0790836544,female,22,Ward D,Vocational Skills,2025-05-27T17:59:00,10,no,casual_labour small_business,0
+10226,B-0110,Faith Njeri,0745139404,female,22,Ward B,Financial Literacy,2025-03-09T08:23:00,10,yes,none,15000
+10078,B-0039,Mercy Akinyi,0740432459,female,17,Ward D,Financial Literacy,2025-07-28T16:44:00,0,yes,remittances small_business,25000
+10106,B-0053,Felix Ouma,0779358465,male,24,Ward B,Vocational Skills,2025-01-09T14:03:00,0,yes,remittances,25000
+10084,B-0042,Kevin Wanjiru,0723711300,male,18,Ward D,Mentorship,2025-02-26T13:21:00,6,no,small_business remittances,0
+10183,B-0088,Faith Kamau,0769837566,female,11,Ward C,Vocational Skills,2025-05-21T09:16:00,1,yes,farming casual_labour,0
+10075,B-0037,Joy Njeri,0759217612,female,16,Ward C,Mentorship,2025-04-21T09:21:00,11,yes,none,12000
+10104,B-0052,Allan Njeri,0766238912,male,15,Ward A,Vocational Skills,2025-08-18T15:32:00,0,yes,none,15000
+10215,B-0104,Allan Kamau,0793369442,male,29,Ward B,Financial Literacy,2025-07-06T12:25:00,8,no,none,3000
+10194,B-0092,Naomi Otieno,0722193908,female,19,Ward A,Financial Literacy,2025-08-13T12:55:00,9,yes,small_business remittances,3000
+10134,B-0064,Lucy Odhiambo,0743971558,female,15,Ward D,Financial Literacy,2025-01-09T10:59:00,0,no,small_business remittances,5000
+10082,B-0041,Linet Mutua,0770025882,female,34,Ward C,Vocational Skills,2025-04-27T14:06:00,3,yes,farming casual_labour,8000
+10053,B-0026,Peter Njeri,0792891895,male,31,Ward A,Vocational Skills,2025-07-13T16:28:00,2,yes,casual_labour small_business,0
+,,,,,,,,,,,,
+10005,B-0002,Lucy Ouma,0717784483,female,27,Ward B,Vocational Skills,2025-06-08T17:12:00,0,yes,casual_labour,25000
+10050,B-0025,Allan Otieno,0729552354,male,24,Ward C,Financial Literacy,2025-03-19T08:25:00,8,yes,none,25000
+10032,B-0017,Kevin Otieno,0751554798,male,31,Ward D,Financial Literacy,2025-03-14T09:16:00,9,yes,none,8000
+10069,B-0035,Felix Odhiambo,0779301246,male,11,Ward B,Mentorship,2025-03-28T12:00:00,0,yes,casual_labour small_business,15000
+10168,B-0081,Amina Njeri,0783960561,female,17,Ward D,Vocational Skills,2025-04-05T12:12:00,0,yes,small_business casual_labour,25000
+10150,B-0073,Kevin Kamau,0717721077,male,33,Ward B,Mentorship,2025-04-06T08:03:00,0,yes,farming,15000
+10223,B-0107,Felix Achieng,0783695801,male,17,Ward C,Vocational Skills,2025-03-10T14:45:00,1,yes,none,5000
+10079,B-0039,Mercy Akinyi,0740432459,female,17,Ward D,Mentorship,2025-04-19T14:39:00,9,yes,small_business,5000
+10130,B-0062,Esther Onyango,0752410090,female,13,Ward B,Financial Literacy,2025-01-11T14:36:00,10,yes,none,0
+10045,B-0022,Esther Njeri,0747369042,female,33,Ward D,Financial Literacy,2025-07-24T08:27:00,2,no,small_business,3000
+10013,B-0007,Peter Njeri,0725809806,male,29,Ward C,Vocational Skills,2025-05-15T11:30:00,8,yes,casual_labour,8000
+10153,B-0074,Kevin Kamau,0712259115,male,31,Ward A,Mentorship,2025-04-06T12:22:00,0,yes,none,0
+10208,B-0100,Naomi Achieng,0773600201,female,19,Ward A,Mentorship,2025-09-25T09:04:00,2,yes,farming remittances,40000
+10120,B-0058,Grace Njeri,0770690025,female,28,Ward A,Financial Literacy,2025-02-06T08:01:00,9,yes,casual_labour remittances,15000
+10074,B-0037,Joy Njeri,0759217612,female,16,Ward C,Vocational Skills,2025-07-24T15:11:00,3,yes,farming,12000
+10206,B-0098,Esther Onyango,0784964258,female,12,Ward A,Mentorship,2025-05-13T17:00:00,10,yes,none,8000
+10247,B-0119,Samuel Mutua,0767411315,male,11,Ward D,Financial Literacy,2025-06-08T16:58:00,5,no,small_business,8000
+10086,B-0043,Lucy Wanjiru,0774780629,female,30,Ward A,Vocational Skills,2025-07-01T13:30:00,11,yes,farming,8000
+10242,B-0117,Dennis Kamau,0716478434,male,19,Ward A,Financial Literacy,2025-08-15T10:35:00,1,yes,casual_labour small_business,0
+10129,B-0061,Hassan Wanjiru,0770066221,male,15,Ward D,Mentorship,2025-06-28T12:35:00,11,no,none,12000
+10167,B-0081,Amina Njeri,0783960561,female,17,Ward D,Mentorship,2025-02-27T17:46:00,7,no,none,5000
+10235,B-0114,Kevin Mutua,0710233724,male,21,Ward C,Mentorship,2025-09-09T16:10:00,12,yes,none,8000
+10205,B-0098,Esther Onyango,0784964258,female,12,Ward A,Vocational Skills,2025-07-01T12:45:00,11,yes,none,0
+10148,B-0071,Faith Kamau,0727388652,female,24,Ward C,Mentorship,2025-03-11T12:33:00,9,yes,farming small_business,3000
+10091,B-0045,Ruth Odhiambo,0768240437,female,31,Ward C,Mentorship,2025-02-14T11:19:00,4,no,farming small_business,5000
+10063,B-0032,Joy Mutua,0790836544,female,22,Ward D,Financial Literacy,2025-03-12T15:14:00,2,yes,farming,0
+10089,B-0045,Ruth Odhiambo,0768240437,female,31,Ward C,Financial Literacy,2025-05-27T11:31:00,2,yes,none,3000
+10112,B-0055,Faith Odhiambo,0728999723,female,26,Ward A,Vocational Skills,2025-08-14T13:09:00,4,no,farming casual_labour,0
+10212,B-0102,Dennis Achieng,0774291655,male,32,Ward C,Financial Literacy,2025-08-02T11:02:00,2,yes,small_business farming,5000
+10094,B-0047,Faith Odhiambo,0713697544,female,15,Ward D,Financial Literacy,2025-08-21T11:17:00,4,yes,small_business casual_labour,5000
+10176,B-0085,Brian Odhiambo,0711913291,male,13,Ward C,Financial Literacy,2025-02-15T09:07:00,1,no,casual_labour,5000
+10033,B-0017,Kevin Otieno,0751554798,male,31,Ward D,Vocational Skills,2025-02-14T10:14:00,2,no,remittances,40000
+10195,B-0093,Esther Ouma,0715592444,female,23,Ward A,Financial Literacy,2025-05-24T13:25:00,8,yes,casual_labour,25000
+10044,B-0022,Esther Njeri,0747369042,female,33,Ward D,Mentorship,2025-05-24T14:01:00,12,no,casual_labour small_business,8000
+10142,B-0068,Lucy Njeri,0771561748,female,25,Ward A,Mentorship,2025-03-09T16:05:00,8,yes,remittances small_business,40000
+10128,B-0061,Hassan Wanjiru,0770066221,male,15,Ward D,Financial Literacy,2025-03-28T14:49:00,1,yes,none,0
+10204,B-0097,Grace Otieno,0715618636,female,15,Ward C,Financial Literacy,2025-09-07T08:40:00,9,yes,small_business,3000
+10180,B-0087,Moses Wanjiru,0749333645,male,12,Ward D,Vocational Skills,2025-06-08T13:06:00,8,yes,farming,3000
+10125,B-0060,Felix Njeri,0781576359,male,26,Ward B,Vocational Skills,2025-03-19T14:46:00,8,no,farming remittances,0
+10026,B-0015,Naomi Ouma,0752110478,female,21,Ward C,Financial Literacy,2025-06-20T12:47:00,11,yes,none,15000
+10116,B-0056,Lucy Njeri,0781232885,female,28,Ward D,Financial Literacy,2025-02-22T15:44:00,3,yes,casual_labour farming,3000
+10101,B-0051,Joy Wanjiru,0749321318,female,27,Ward B,Vocational Skills,2025-04-26T12:54:00,6,no,small_business,40000
+10055,B-0027,Hassan Akinyi,0763428001,male,23,Ward D,Financial Literacy,2025-02-05T13:05:00,12,no,remittances,0
+10099,B-0049,Naomi Njeri,0727580355,female,11,Ward A,Mentorship,2025-03-09T11:58:00,6,yes,remittances farming,25000
+10178,B-0086,Peter Otieno,0721339367,male,32,Ward D,Mentorship,2025-07-20T08:49:00,5,no,farming small_business,25000
+10039,B-0019,Linet Achieng,0776262352,female,12,Ward B,Vocational Skills,2025-06-17T15:38:00,4,yes,none,0
+10203,B-0097,Grace Otieno,0715618636,female,15,Ward C,Mentorship,2025-06-27T10:33:00,4,yes,remittances casual_labour,8000
+10028,B-0015,Naomi Ouma,0752110478,female,21,Ward C,Mentorship,2025-01-27T09:30:00,11,no,none,25000
+10165,B-0079,Allan Njeri,0737631611,male,20,Ward D,Mentorship,2025-01-15T10:28:00,0,yes,casual_labour remittances,12000
+10199,B-0095,Victor Onyango,0730060604,male,20,Ward B,Financial Literacy,2025-09-20T14:29:00,5,yes,remittances,15000
+10006,B-0003,Grace Akinyi,0766126116,female,13,Ward B,Financial Literacy,2025-07-09T15:17:00,9,no,farming,5000
+10098,B-0049,Naomi Njeri,0727580355,female,11,Ward A,Financial Literacy,2025-01-13T16:40:00,4,no,small_business,0
+10007,B-0003,Grace Akinyi,0766126116,female,13,Ward B,Mentorship,2025-09-17T12:57:00,3,no,small_business farming,25000
+10031,B-0017,Kevin Otieno,0751554798,male,31,Ward D,Mentorship,2025-04-14T08:30:00,8,yes,none,15000
+10141,B-0067,Lucy Mutua,0722374072,female,34,Ward C,Mentorship,2025-05-23T13:16:00,4,no,none,5000
+10162,B-0078,Faith Kamau,0716761851,female,16,Ward B,Vocational Skills,2025-08-16T10:32:00,0,yes,none,8000
+10080,B-0040,Brian Otieno,0747502921,male,26,Ward C,Mentorship,2025-01-04T17:59:00,2,no,none,5000
+10048,B-0024,Mercy Wanjiru,0711619076,female,26,Ward B,Mentorship,2025-02-04T11:19:00,2,yes,remittances,40000
+10231,B-0112,Brian Odhiambo,0710481904,male,26,Ward D,Financial Literacy,2025-01-28T09:02:00,12,no,farming remittances,8000
+10012,B-0006,Mercy Otieno,0784714297,female,15,Ward C,Mentorship,2025-05-17T12:14:00,12,yes,small_business remittances,0
+10100,B-0050,Naomi Odhiambo,0768224916,female,17,Ward B,Vocational Skills,2025-04-22T09:29:00,6,no,none,12000
+10061,B-0031,Moses Otieno,0719437596,male,17,Ward D,Mentorship,2025-06-13T12:07:00,12,yes,none,0
+10224,B-0108,Ruth Otieno,0748867961,female,25,Ward A,Financial Literacy,2025-04-22T09:35:00,5,yes,none,12000
+10185,B-0089,Victor Njeri,0753423984,male,18,Ward A,Vocational Skills,2025-02-15T09:32:00,2,no,small_business remittances,25000
+10158,B-0077,Moses Odhiambo,0715798969,male,27,Ward B,Mentorship,2025-07-27T09:28:00,5,no,none,8000
+10070,B-0035,Felix Odhiambo,0779301246,male,11,Ward B,Vocational Skills,2025-08-20T10:57:00,0,yes,remittances farming,0
+10193,B-0092,Naomi Otieno,0722193908,female,19,Ward A,Vocational Skills,2025-08-09T09:00:00,6,yes,small_business remittances,3000
+10237,B-0115,Kevin Wanjiru,0711573248,male,34,Ward C,Mentorship,2025-03-22T15:15:00,11,yes,remittances casual_labour,0
+10152,B-0074,Kevin Kamau,0712259115,male,31,Ward A,Financial Literacy,2025-02-22T15:54:00,2,no,remittances farming,8000
+10188,B-0090,Samuel Mutua,0734556192,male,11,Ward C,Mentorship,2025-05-01T13:14:00,3,yes,none,25000
+10014,B-0008,Grace Ouma,0786665755,female,31,Ward B,Financial Literacy,2025-05-02T11:31:00,10,yes,none,25000
+10066,B-0033,Grace Onyango,0772544046,female,26,Ward D,Vocational Skills,2025-04-20T08:00:00,9,no,farming remittances,12000
+10151,B-0073,Kevin Kamau,0717721077,male,33,Ward B,Financial Literacy,2025-08-16T17:40:00,6,yes,none,3000
+10081,B-0041,Linet Mutua,0770025882,female,34,Ward C,Mentorship,2025-03-23T09:47:00,0,yes,farming casual_labour,15000
+10213,B-0103,Linet Wanjiru,0720398091,female,30,Ward B,Mentorship,2025-05-14T09:15:00,10,no,casual_labour small_business,8000
+10201,B-0096,Naomi Akinyi,0777852569,female,15,Ward A,Vocational Skills,2025-04-14T15:49:00,9,yes,remittances,15000
+10221,B-0107,Felix Achieng,0783695801,male,17,Ward C,Mentorship,2025-06-18T14:38:00,8,yes,none,5000
+10092,B-0046,Esther Onyango,0763873226,female,34,Ward A,Vocational Skills,2025-08-05T17:20:00,8,yes,farming small_business,40000
+10192,B-0092,Naomi Otieno,0722193908,female,19,Ward A,Mentorship,2025-06-22T11:39:00,9,no,small_business,3000
+10071,B-0036,Peter Njeri,0713629581,male,27,Ward C,Mentorship,2025-04-06T09:00:00,9,yes,none,8000
+10135,B-0064,Lucy Odhiambo,0743971558,female,15,Ward D,Vocational Skills,2025-02-10T12:58:00,0,yes,remittances small_business,0
+10111,B-0055,Faith Odhiambo,0728999723,female,26,Ward A,Financial Literacy,2025-08-01T11:41:00,4,no,casual_labour small_business,40000
+10018,B-0010,Ruth Njeri,0767390467,female,21,Ward D,Mentorship,2025-03-08T08:38:00,2,no,remittances,0
+10190,B-0091,Kevin Onyango,0747437199,male,27,Ward B,Mentorship,2025-05-07T08:10:00,8,yes,farming,15000
+10211,B-0102,Dennis Achieng,0774291655,male,32,Ward C,Mentorship,2025-07-01T11:56:00,6,yes,none,0
+10010,B-0004,Naomi Akinyi,0717933677,female,29,Ward A,Mentorship,2025-03-05T15:05:00,8,yes,farming casual_labour,0
+10209,B-0101,Samuel Wanjiru,0740968878,male,34,Ward D,Vocational Skills,2025-01-21T17:20:00,2,yes,none,8000
+10105,B-0053,Felix Ouma,0779358465,male,24,Ward B,Financial Literacy,2025-04-22T14:32:00,12,yes,none,15000
+10179,B-0086,Peter Otieno,0721339367,male,32,Ward D,Financial Literacy,2025-04-27T17:51:00,5,no,remittances,0
+10140,B-0067,Lucy Mutua,0722374072,female,34,Ward C,Vocational Skills,2025-07-08T14:38:00,12,yes,remittances,40000
+10058,B-0029,Ruth Odhiambo,0724754327,female,21,Ward A,Mentorship,2025-08-10T11:04:00,5,yes,none,12000
+10187,B-0090,Samuel Mutua,0734556192,male,11,Ward C,Vocational Skills,2025-04-18T16:19:00,9,no,casual_labour small_business,40000
+10154,B-0075,Kevin Ouma,0739851095,male,13,Ward C,Financial Literacy,2025-09-23T09:09:00,5,yes,remittances farming,8000
+10126,B-0060,Felix Njeri,0781576359,male,26,Ward B,Financial Literacy,2025-07-10T08:02:00,3,no,none,0
+10138,B-0066,Esther Njeri,0764198427,female,21,Ward D,Mentorship,2025-03-21T14:49:00,12,no,remittances,12000
+10184,B-0089,Victor Njeri,0753423984,male,18,Ward A,Mentorship,2025-05-04T10:07:00,0,yes,casual_labour,12000
+10025,B-0014,Lucy Odhiambo,0775627516,female,24,Ward A,Financial Literacy,2025-01-15T08:16:00,3,yes,none,3000
+10065,B-0033,Grace Onyango,0772544046,female,26,Ward D,Mentorship,2025-05-20T16:23:00,0,yes,remittances small_business,40000
+10160,B-0077,Moses Odhiambo,0715798969,male,27,Ward B,Vocational Skills,2025-08-18T15:55:00,2,no,none,25000
+10029,B-0016,Moses Onyango,0719229206,male,13,Ward C,Financial Literacy,2025-03-16T08:51:00,11,no,none,5000
+10052,B-0025,Allan Otieno,0729552354,male,24,Ward C,Vocational Skills,2025-06-04T16:54:00,10,no,remittances,25000
+10047,B-0024,Mercy Wanjiru,0711619076,female,26,Ward B,Financial Literacy,2025-09-06T13:18:00,2,yes,none,5000
+10241,B-0116,Victor Achieng,0762734062,male,23,Ward A,Financial Literacy,2025-05-10T09:44:00,4,no,none,3000
+10030,B-0016,Moses Onyango,0719229206,male,13,Ward C,Vocational Skills,2025-04-11T13:50:00,12,yes,remittances,3000
+10067,B-0033,Grace Onyango,0772544046,female,26,Ward D,Financial Literacy,2025-02-17T14:37:00,4,yes,small_business,5000
+10102,B-0051,Joy Wanjiru,0749321318,female,27,Ward B,Mentorship,2025-01-20T13:49:00,0,no,small_business,40000
+10207,B-0099,Ruth Kamau,0710444841,female,25,Ward A,Financial Literacy,2025-09-19T17:12:00,6,yes,small_business,3000
+10172,B-0083,Hassan Akinyi,0778006237,male,20,Ward B,Mentorship,2025-01-10T15:28:00,8,yes,none,5000
+10062,B-0031,Moses Otieno,0719437596,male,17,Ward D,Financial Literacy,2025-06-28T12:34:00,10,no,farming,15000
+10163,B-0079,Allan Njeri,0737631611,male,20,Ward D,Financial Literacy,2025-05-25T13:27:00,4,yes,none,8000
+10093,B-0046,Esther Onyango,0763873226,female,34,Ward A,Mentorship,2025-09-24T15:28:00,11,no,small_business,8000
+10107,B-0053,Felix Ouma,0779358465,male,24,Ward B,Mentorship,2025-07-21T12:06:00,3,no,casual_labour remittances,25000
+10175,B-0084,Lucy Wanjiru,0795359381,female,15,Ward D,Mentorship,2025-09-08T13:55:00,1,yes,remittances farming,5000
+10143,B-0068,Lucy Njeri,0771561748,female,25,Ward A,Financial Literacy,2025-07-07T17:03:00,10,no,small_business remittances,40000
+10227,B-0110,Faith Njeri,0745139404,female,22,Ward B,Vocational Skills,2025-07-01T14:22:00,10,yes,remittances farming,5000
+10246,B-0119,Samuel Mutua,0767411315,male,11,Ward D,Vocational Skills,2025-02-26T17:20:00,6,yes,casual_labour remittances,15000
+10038,B-0019,Linet Achieng,0776262352,female,12,Ward B,Mentorship,2025-04-04T11:38:00,9,yes,none,3000
+10191,B-0091,Kevin Onyango,0747437199,male,27,Ward B,Vocational Skills,2025-08-22T16:24:00,7,no,none,3000
+10115,B-0056,Lucy Njeri,0781232885,female,28,Ward D,Vocational Skills,2025-06-26T11:57:00,6,yes,none,5000
+10057,B-0028,Ruth Akinyi,0718354761,female,17,Ward A,Vocational Skills,2025-07-21T08:54:00,1,yes,none,3000
+10230,B-0112,Brian Odhiambo,0710481904,male,26,Ward D,Mentorship,2025-07-22T09:53:00,12,yes,casual_labour farming,12000
+10008,B-0004,Naomi Akinyi,0717933677,female,29,Ward A,Financial Literacy,2025-01-05T14:45:00,12,no,none,40000
+10136,B-0065,Grace Akinyi,0775399034,female,16,Ward B,Mentorship,2025-01-21T12:19:00,11,yes,farming small_business,5000
+10088,B-0044,Victor Achieng,0798662305,male,14,Ward D,Mentorship,2025-06-16T15:44:00,12,yes,none,40000
+10196,B-0093,Esther Ouma,0715592444,female,23,Ward A,Vocational Skills,2025-06-01T15:19:00,2,yes,remittances small_business,12000
+10239,B-0116,Victor Achieng,0762734062,male,23,Ward A,Vocational Skills,2025-02-18T10:38:00,7,no,small_business,8000
+10166,B-0080,Joy Mutua,0712437810,female,19,Ward A,Financial Literacy,2025-07-02T12:36:00,2,yes,small_business,5000
+10124,B-0059,Ruth Mutua,0792212100,female,27,Ward B,Vocational Skills,2025-09-09T15:50:00,1,no,casual_labour farming,8000
+10095,B-0048,Linet Ouma,0773667109,female,32,Ward C,Mentorship,2025-09-12T11:20:00,3,no,none,3000
+10210,B-0101,Samuel Wanjiru,0740968878,male,34,Ward D,Financial Literacy,2025-06-09T08:17:00,10,yes,none,3000
+10147,B-0071,Faith Kamau,0727388652,female,24,Ward C,Vocational Skills,2025-04-02T09:23:00,10,no,casual_labour,3000
+10197,B-0094,Allan Wanjiru,0721339077,male,29,Ward B,Financial Literacy,2025-07-19T09:52:00,5,no,none,8000
+10248,B-0120,Grace Otieno,0765148187,female,25,Ward B,Mentorship,2025-02-19T11:31:00,6,no,remittances farming,5000
+10169,B-0081,Amina Njeri,0783960561,female,17,Ward D,Financial Literacy,2025-01-17T12:53:00,10,no,casual_labour,3000
+10181,B-0087,Moses Wanjiru,0749333645,male,12,Ward D,Mentorship,2025-06-14T16:42:00,0,yes,none,5000
+10085,B-0042,Kevin Wanjiru,0723711300,male,18,Ward D,Vocational Skills,2025-06-09T13:58:00,5,yes,farming,40000
+10174,B-0084,Lucy Wanjiru,0795359381,female,15,Ward D,Financial Literacy,2025-01-04T08:53:00,9,yes,small_business remittances,40000
+10016,B-0010,Ruth Njeri,0767390467,female,21,Ward D,Financial Literacy,2025-04-01T11:31:00,3,no,farming,8000
+10244,B-0118,Joy Odhiambo,0743463796,female,19,Ward D,Mentorship,2025-01-12T12:40:00,9,yes,none,12000
+10159,B-0077,Moses Odhiambo,0715798969,male,27,Ward B,Financial Literacy,2025-08-04T13:14:00,11,yes,casual_labour farming,5000
+10156,B-0076,Ruth Otieno,0755520180,female,28,Ward D,Financial Literacy,2025-07-06T10:58:00,10,yes,small_business,40000
+10236,B-0115,Kevin Wanjiru,0711573248,male,34,Ward C,Financial Literacy,2025-03-12T09:12:00,10,no,remittances,5000
+10040,B-0020,Peter Wanjiru,0763404922,male,23,Ward D,Vocational Skills,2025-06-07T13:21:00,2,yes,none,8000
+10245,B-0119,Samuel Mutua,0767411315,male,11,Ward D,Mentorship,2025-01-01T12:23:00,2,yes,small_business,5000
+10137,B-0066,Esther Njeri,0764198427,female,21,Ward D,Vocational Skills,2025-06-12T10:09:00,12,yes,remittances small_business,15000
+10110,B-0054,Naomi Njeri,0712510524,female,25,Ward B,Vocational Skills,2025-05-25T13:50:00,3,no,small_business remittances,25000
+10118,B-0057,Naomi Otieno,0743352343,female,17,Ward C,Mentorship,2025-08-15T15:15:00,7,yes,none,0
+10133,B-0064,Lucy Odhiambo,0743971558,female,15,Ward D,Mentorship,2025-01-22T11:55:00,1,yes,farming remittances,40000
+10083,B-0041,Linet Mutua,0770025882,female,34,Ward C,Financial Literacy,2025-02-02T09:52:00,12,yes,none,12000
+10139,B-0067,Lucy Mutua,0722374072,female,34,Ward C,Financial Literacy,2025-01-20T08:53:00,2,yes,casual_labour remittances,12000
+10022,B-0012,Linet Kamau,0780490681,female,26,Ward C,Financial Literacy,2025-05-03T09:35:00,12,yes,remittances,25000
+10121,B-0058,Grace Njeri,0770690025,female,28,Ward A,Vocational Skills,2025-02-17T10:02:00,3,yes,remittances,25000
+10051,B-0025,Allan Otieno,0729552354,male,24,Ward C,Mentorship,2025-06-04T11:46:00,3,yes,none,0
+10146,B-0070,Mercy Achieng,0721282512,female,19,Ward C,Mentorship,2025-04-03T12:23:00,9,yes,none,15000
+10090,B-0045,Ruth Odhiambo,0768240437,female,31,Ward C,Vocational Skills,2025-08-26T13:22:00,1,no,farming casual_labour,25000
+10173,B-0083,Hassan Akinyi,0778006237,male,20,Ward B,Vocational Skills,2025-01-08T11:39:00,2,yes,none,3000
+10145,B-0069,Victor Njeri,0793742074,male,20,Ward A,Mentorship,2025-07-19T13:30:00,8,yes,casual_labour remittances,8000
+10238,B-0115,Kevin Wanjiru,0711573248,male,34,Ward C,Vocational Skills,2025-09-23T13:44:00,4,yes,small_business,5000
+10002,B-0001,Peter Akinyi,0797366946,male,12,Ward A,Vocational Skills,2025-05-24T11:19:00,7,yes,casual_labour small_business,25000
+10076,B-0037,Joy Njeri,0759217612,female,16,Ward C,Financial Literacy,2025-01-09T16:16:00,4,yes,remittances casual_labour,8000
+10097,B-0048,Linet Ouma,0773667109,female,32,Ward C,Financial Literacy,2025-05-14T09:40:00,1,no,small_business,8000
+10043,B-0022,Esther Njeri,0747369042,female,33,Ward D,Vocational Skills,2025-07-23T12:42:00,4,no,remittances,0
+10228,B-0111,Kevin Mutua,0741055781,male,26,Ward D,Mentorship,2025-04-23T08:38:00,2,no,farming small_business,8000
+10046,B-0023,Dennis Wanjiru,0730256261,male,13,Ward B,Financial Literacy,2025-06-15T10:00:00,0,yes,none,5000
+10171,B-0083,Hassan Akinyi,0778006237,male,20,Ward B,Financial Literacy,2025-09-15T13:45:00,3,no,farming remittances,25000
+10003,B-0001,Peter Akinyi,0797366946,male,12,Ward A,Mentorship,2025-02-06T11:32:00,12,no,small_business farming,8000
+10232,B-0112,Brian Odhiambo,0710481904,male,26,Ward D,Vocational Skills,2025-06-24T14:44:00,11,no,none,8000
+10017,B-0010,Ruth Njeri,0767390467,female,21,Ward D,Vocational Skills,2025-04-15T12:48:00,4,yes,none,40000
+10087,B-0043,Lucy Wanjiru,0774780629,female,30,Ward A,Mentorship,2025-02-19T14:00:00,8,yes,small_business,12000
+10108,B-0054,Naomi Njeri,0712510524,female,25,Ward B,Mentorship,2025-04-06T09:51:00,12,yes,none,8000
+10182,B-0088,Faith Kamau,0769837566,female,11,Ward C,Financial Literacy,2025-01-26T08:55:00,10,yes,none,12000
+10132,B-0063,Kevin Wanjiru,0799855030,male,20,Ward A,Mentorship,2025-03-16T09:41:00,7,yes,farming,5000
+10015,B-0009,Kevin Njeri,0718427393,male,29,Ward A,Financial Literacy,2025-04-22T11:31:00,0,yes,casual_labour,15000
+10170,B-0082,Ruth Achieng,0798358257,female,31,Ward D,Financial Literacy,2025-08-05T10:36:00,5,yes,casual_labour farming,5000
+10019,B-0011,Victor Kamau,0743343251,male,16,Ward B,Mentorship,2025-03-14T08:11:00,6,no,none,15000
+10073,B-0036,Peter Njeri,0713629581,male,27,Ward C,Vocational Skills,2025-03-17T12:40:00,0,yes,farming,40000
+10243,B-0118,Joy Odhiambo,0743463796,female,19,Ward D,Financial Literacy,2025-06-24T15:27:00,7,yes,casual_labour farming,15000
+10109,B-0054,Naomi Njeri,0712510524,female,25,Ward B,Financial Literacy,2025-08-21T13:42:00,10,no,small_business farming,40000
+10131,B-0063,Kevin Wanjiru,0799855030,male,20,Ward A,Vocational Skills,2025-02-25T15:04:00,0,yes,remittances,25000
+10202,B-0097,Grace Otieno,0715618636,female,15,Ward C,Vocational Skills,2025-06-11T12:32:00,2,yes,farming,12000
+10214,B-0103,Linet Wanjiru,0720398091,female,30,Ward B,Financial Literacy,2025-07-10T08:50:00,3,yes,remittances,5000
+10219,B-0106,Ruth Kamau,0779328247,female,20,Ward D,Financial Literacy,2025-09-15T10:23:00,5,yes,small_business,25000
+10157,B-0076,Ruth Otieno,0755520180,female,28,Ward D,Mentorship,2025-04-26T10:59:00,3,yes,none,15000
+10216,B-0105,Ruth Otieno,0775202710,female,19,Ward A,Vocational Skills,2025-06-13T14:52:00,5,yes,farming remittances,8000
+10009,B-0004,Naomi Akinyi,0717933677,female,29,Ward A,Vocational Skills,2025-01-03T15:15:00,12,yes,remittances,8000
+10001,B-0001,Peter Akinyi,0797366946,male,12,Ward A,Financial Literacy,2025-09-05T15:26:00,5,no,none,12000
+10096,B-0048,Linet Ouma,0773667109,female,32,Ward C,Vocational Skills,2025-03-22T11:24:00,2,yes,none,12000
+10186,B-0090,Samuel Mutua,0734556192,male,11,Ward C,Financial Literacy,2025-02-24T17:44:00,9,yes,casual_labour small_business,25000
+10056,B-0027,Hassan Akinyi,0763428001,male,23,Ward D,Mentorship,2025-01-21T09:59:00,11,no,none,3000
+10049,B-0024,Mercy Wanjiru,0711619076,female,26,Ward B,Vocational Skills,2025-06-02T17:44:00,2,yes,remittances farming,8000
+10123,B-0059,Ruth Mutua,0792212100,female,27,Ward B,Financial Literacy,2025-09-02T13:52:00,7,no,casual_labour,15000
+10113,B-0055,Faith Odhiambo,0728999723,female,26,Ward A,Mentorship,2025-02-27T16:53:00,5,yes,casual_labour farming,0
+10218,B-0106,Ruth Kamau,0779328247,female,20,Ward D,Mentorship,2025-04-23T09:12:00,4,yes,none,5000
+10011,B-0005,Linet Otieno,0787457446,female,29,Ward D,Mentorship,2025-01-21T12:33:00,10,no,casual_labour farming,3000
+10023,B-0013,Allan Ouma,0719824854,male,14,Ward D,Financial Literacy,2025-02-02T13:34:00,7,yes,remittances farming,15000
+10103,B-0051,Joy Wanjiru,0749321318,female,27,Ward B,Financial Literacy,2025-02-02T10:45:00,12,yes,small_business,15000
+10164,B-0079,Allan Njeri,0737631611,male,20,Ward D,Vocational Skills,2025-02-13T10:03:00,11,no,remittances,5000
+10114,B-0056,Lucy Njeri,0781232885,female,28,Ward D,Mentorship,2025-05-09T10:54:00,3,yes,farming casual_labour,40000
+10036,B-0018,Dennis Mutua,0713028344,male,25,Ward C,Financial Literacy,2025-06-03T11:32:00,8,yes,casual_labour,3000
+10042,B-0021,Faith Onyango,0763907779,female,28,Ward C,Vocational Skills,2025-04-02T09:26:00,1,no,remittances,5000
+10059,B-0030,Amina Ouma,0730302435,female,28,Ward A,Financial Literacy,2025-05-27T12:32:00,7,yes,small_business,12000
+10177,B-0086,Peter Otieno,0721339367,male,32,Ward D,Vocational Skills,2025-03-22T14:10:00,0,yes,remittances casual_labour,25000
+10037,B-0019,Linet Achieng,0776262352,female,12,Ward B,Financial Literacy,2025-01-16T15:58:00,5,yes,none,12000
+10021,B-0012,Linet Kamau,0780490681,female,26,Ward C,Vocational Skills,2025-07-27T15:10:00,1,yes,casual_labour,3000
+10161,B-0078,Faith Kamau,0716761851,female,16,Ward B,Mentorship,2025-01-09T10:16:00,7,yes,casual_labour small_business,15000
+10149,B-0072,Peter Njeri,0779092953,male,29,Ward D,Mentorship,2025-08-19T12:27:00,1,no,small_business remittances,5000
+10155,B-0076,Ruth Otieno,0755520180,female,28,Ward D,Vocational Skills,2025-02-16T12:24:00,1,no,casual_labour,40000
+10077,B-0038,Naomi Njeri,0777470852,female,21,Ward B,Vocational Skills,2025-01-06T11:10:00,11,no,small_business,8000
