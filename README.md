@@ -5,6 +5,10 @@ programme indicators), an HTML report, cleaned data, a list of rejected rows and
 Built for NGO and programme data (KoboToolbox/ODK exports, beneficiary registers, attendance, surveys) and
 works equally for sales, finance or any tabular data.
 
+## Run as a website
+`swa-tool serve --config config.yaml` starts a browser interface (upload a file → verified report). Deployment on
+Render, the advertising slots, visitor privacy and all environment variables are explained in **WEB_GUIDE.md**.
+
 ## 1. Install (once)
 1. Install Python 3.10+ from python.org (Windows: tick **Add Python to PATH**).
 2. Open a terminal in this folder and run:  `pip install .`

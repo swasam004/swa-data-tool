@@ -16,4 +16,4 @@ swa-tool = "swa_data_tool.cli:main"
 packages = ["swa_data_tool"]
 
 [tool.setuptools.package-data]
-swa_data_tool = ["templates/*"]
+swa_data_tool = ["templates/*", "static/*"]

@@ -1,5 +1,7 @@
 outputs/
-inbox/
 __pycache__/
+*.pyc
 *.bak
-.pytest_cache/
+*.egg-info/
+build/
+.venv/

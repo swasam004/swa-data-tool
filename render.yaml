@@ -1,0 +1,19 @@
+# Render.com blueprint - New > Blueprint > pick this repository.
+services:
+  - type: web
+    name: swa-data-tool
+    runtime: python
+    buildCommand: pip install .
+    startCommand: swa-tool serve --config config.yaml
+    healthCheckPath: /healthz
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.3
+      - key: SWA_SECRET            # signs forms; generated once by Render
+        generateValue: true
+      - key: SWA_PRIVACY_SALT      # YOU set this: a long secret phrase (hashing of personal data)
+        sync: false
+      - key: SWA_ADMIN_PASSWORD    # YOU set this: unlocks the /settings page for you only
+        sync: false
+      - key: SWA_RETENTION_HOURS   # results are deleted after this many hours
+        value: "48"

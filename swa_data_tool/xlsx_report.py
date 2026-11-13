@@ -535,6 +535,8 @@ def write_workbook(path, ctx: dict) -> dict:
     ]
     if cfg["organisation"]:
         rows.insert(0, ("Organisation", cfg["organisation"]))
+    if cfg.get("branding", True):
+        rows.append(("Created with", "SWA Data Analysis Tool - swasamson.site"))
     for i, (k, v) in enumerate(rows, start=2):
         ws_sum.write_string(i, 0, k, bold)
         ws_sum.write_string(i, 1, str(v), status_fmt if k == "Status" else wrap)

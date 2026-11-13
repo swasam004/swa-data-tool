@@ -8,6 +8,7 @@ from __future__ import annotations
 import datetime as _dt
 import hashlib
 import json
+import os
 from pathlib import Path
 
 import yaml
@@ -28,7 +29,7 @@ NUM_OPS = {"equals", "not_equals", "in", "not_in", "gte", "gt", "lte", "lt"}
 ALL_OPS = CAT_OPS | NUM_OPS
 
 TOP_KEYS = {
-    "dataset_name", "organisation", "folders", "file_patterns", "read", "missing_tokens",
+    "dataset_name", "organisation", "branding", "folders", "file_patterns", "read", "missing_tokens",
     "currency_symbols", "max_quarantine_pct", "excel_formulas_max_rows", "privacy_salt",
     "columns", "pivots", "indicators",
 }
@@ -120,6 +121,9 @@ def load_config(path) -> dict:
     if not isinstance(raw, dict):
         raise ConfigError(f"{path.name} must contain a YAML mapping at the top level.")
     cfg = normalize_config(raw, base_dir=path.parent)
+    env_salt = os.environ.get("SWA_PRIVACY_SALT", "").strip()
+    if env_salt:                       # keeps the secret out of config.yaml / git
+        cfg["privacy_salt"] = env_salt
     cfg["_config_path"] = str(path)
     public = {k: v for k, v in raw.items() if k != "privacy_salt"}   # never fingerprint the secret
     cfg["_config_sha256"] = hashlib.sha256(json.dumps(_stringify_keys(public), sort_keys=True, default=str).encode("utf-8")).hexdigest()
@@ -132,6 +136,9 @@ def normalize_config(raw: dict, base_dir: Path) -> dict:
     cfg: dict = {}
     cfg["dataset_name"] = str(raw.get("dataset_name") or "Dataset").strip() or "Dataset"
     cfg["organisation"] = str(raw.get("organisation") or "").strip()
+    if "branding" in raw and not isinstance(raw["branding"], bool):
+        raise ConfigError("branding: must be true or false (true adds a small 'created with swasamson.site' line to reports).")
+    cfg["branding"] = bool(raw.get("branding", True))
 
     folders = raw.get("folders") or {}
     if not isinstance(folders, dict):

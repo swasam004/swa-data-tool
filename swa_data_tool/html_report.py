@@ -188,5 +188,7 @@ def build_html(ctx: dict) -> str:
         q = ctx["quar_out"].head(50)
         h.append(f"<p class='muted'>First {len(q)} of {len(ctx['quar_out'])} quarantined rows (all are in report.xlsx and quarantined_rows.csv).</p>")
         h.append(_table(list(q.columns), q.fillna("").values.tolist(), 99))
+    if cfg.get("branding", True):
+        h.append("<p class='muted' style='margin-top:40px;border-top:1px solid #ddd;padding-top:12px'>Created with SWA Data Analysis Tool &middot; swasamson.site</p>")
     h.append("</body></html>")
     return "".join(h)

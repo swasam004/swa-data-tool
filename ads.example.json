@@ -1,0 +1,27 @@
+{
+  "_help": "Copy this to ads.json, edit, save. No restart needed. Slots: top, home_below, result_below, footer. Each slot = one ad or a LIST of ads (one is picked at random per page view).",
+  "contact": "mailto:you@example.com",
+  "placeholders": true,
+  "slots": {
+    "top": {
+      "type": "image",
+      "src": "/ads-media/sponsor-728x90.png",
+      "href": "https://sponsor.example.com/?utm_source=swa-data-tool",
+      "alt": "Sponsor name",
+      "label": "Sponsored",
+      "start": "2026-12-01",
+      "end": "2026-12-31"
+    },
+    "home_below": [
+      {"type": "text", "title": "Your headline here", "body": "One or two lines about the offer.", "href": "https://advertiser.example.com", "cta": "Learn more"},
+      {"type": "image", "src": "https://cdn.example.com/banner-970x250.jpg", "href": "https://advertiser2.example.com", "alt": "Advertiser 2"}
+    ],
+    "result_below": {
+      "type": "html",
+      "html": "<a href='https://example.com' target='_blank'><img src='https://cdn.example.com/300x250.png'></a>",
+      "width": 300,
+      "height": 250
+    },
+    "footer": {"type": "text", "title": "Advertise on SWA Data Analysis", "body": "Reach NGOs, researchers and data teams.", "href": "https://swasamson.site", "cta": "Get in touch"}
+  }
+}

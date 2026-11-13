@@ -82,7 +82,7 @@ def process_file(path, cfg: dict) -> RunResult:
     fh = logging.FileHandler(out_dir / "run.log", encoding="utf-8")
     fh.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
     log.addHandler(fh)
-    audit = {"tool": f"SWA Data Analysis Tool {__version__}", "python": platform.python_version(), "pandas": pd.__version__,
+    audit = {"dataset_name": cfg["dataset_name"], "tool": f"SWA Data Analysis Tool {__version__}", "python": platform.python_version(), "pandas": pd.__version__,
              "source_file": path.name, "run_time": now.isoformat(timespec="seconds"),
              "config_file": Path(cfg["_config_path"]).name, "config_sha256": cfg["_config_sha256"]}
     try:

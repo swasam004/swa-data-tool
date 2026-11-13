@@ -3,7 +3,7 @@
 #  Every unknown setting is rejected, so typos cannot silently switch
 #  a safety check off.
 # ===================================================================
-dataset_name: "Sales Analysis"
+dataset_name: "Data Analysis Report"
 
 folders:
   inbox: inbox          # drop files here (used by 'watch' / 'scan')

@@ -2,139 +2,325 @@
 
     swa-tool serve -c config.yaml            (then open http://127.0.0.1:8080)
 
-Set SWA_PASSWORD to require a password (HTTP basic auth, any user name).
+Environment variables (all optional):
+  SWA_PASSWORD         require this password for the WHOLE site (HTTP basic auth, any user name)
+  SWA_ADMIN_PASSWORD   password for /settings. Without it, settings are only editable from the same computer.
+  SWA_SECRET           long random text used to sign forms (keeps forms valid across restarts)
+  SWA_PRIVACY_SALT     secret phrase for hashing personal data (overrides privacy_salt in config.yaml - keeps it out of git)
+  SWA_RETENTION_HOURS  delete results this many hours after creation (default 48; 0 = keep forever)
+  SWA_MAX_MB           upload limit in MB (default 50)
+  SWA_ADS_FILE         path to ads.json (default: ads.json next to config.yaml)
+  SWA_ADS_DIR          folder with ad images (default: ads/ next to config.yaml)
+  SWA_PROFILES_DIR     folder with extra analysis profiles (*.yaml) shown in a drop-down (default: profiles/)
 """
 from __future__ import annotations
 
+import hashlib
+import hmac
 import io
 import json
 import os
 import re
 import secrets
+import shutil
 import tempfile
 import threading
+import time
 import zipfile
 from html import escape
 from pathlib import Path
 
-from flask import Flask, Response, abort, redirect, request, send_file
+from flask import Flask, Response, abort, g, redirect, request, send_file, send_from_directory
 
+from .ads import IMG_EXT, Ads
 from .config import ConfigError, load_config
 from .pipeline import process_file
+from .webui import ICON, SITE_UTM, frame
 
 ALLOWED = {".csv", ".tsv", ".txt", ".xlsx", ".xlsm", ".xls", ".json"}
 RUN_ID = re.compile(r"^[A-Za-z0-9_\-]{1,200}$")
+SID_RE = re.compile(r"^[a-f0-9]{32}$")
 FILES = {"report.xlsx": "Excel report", "report.html": "HTML report", "clean_data.csv": "Clean data (CSV)",
          "quarantined_rows.csv": "Rejected rows (CSV)", "audit.json": "Audit record", "run.log": "Run log"}
 PLACEHOLDER_SALT = "replace-this-with-a-long-secret-phrase"
 _lock = threading.Lock()          # one analysis at a time (the pipeline logs to one shared logger)
-
-CSS = """:root{--bg:#f6f7f9;--fg:#1c2330;--card:#fff;--mut:#667085;--line:#e3e6ec;--pri:#1f6feb;--ok:#1a7f37;--warn:#9a6700;--bad:#cf222e}
-@media(prefers-color-scheme:dark){:root{--bg:#12161d;--fg:#e6e9ef;--card:#1a2029;--mut:#98a2b3;--line:#2a3240;--pri:#4c8dff;--ok:#3fb950;--warn:#d29922;--bad:#f85149}}
-*{box-sizing:border-box}body{margin:0;font:16px/1.5 system-ui,sans-serif;background:var(--bg);color:var(--fg)}
-header{display:flex;gap:20px;align-items:center;padding:14px 24px;border-bottom:1px solid var(--line);background:var(--card)}
-header b{font-size:18px;margin-right:auto}header a{color:var(--fg);text-decoration:none;color:var(--mut)}header a:hover{color:var(--pri)}
-main{max-width:820px;margin:28px auto;padding:0 18px}.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:22px;margin-bottom:18px}
-h1{font-size:24px;margin:0 0 6px}h2{font-size:17px;margin:0 0 10px}.mut{color:var(--mut);font-size:14px}
-#drop{border:2px dashed var(--line);border-radius:12px;padding:44px 16px;text-align:center;cursor:pointer;transition:.15s}
-#drop.over,#drop:hover{border-color:var(--pri);background:color-mix(in srgb,var(--pri) 6%,transparent)}
-button,.btn{background:var(--pri);color:#fff;border:0;border-radius:8px;padding:10px 18px;font:inherit;cursor:pointer;text-decoration:none;display:inline-block}
-.btn.sec{background:transparent;color:var(--pri);border:1px solid var(--line)}button:disabled{opacity:.5}
-.tag{display:inline-block;padding:3px 12px;border-radius:99px;font-weight:600;font-size:14px;border:1px solid currentColor}
-.ok{color:var(--ok)}.warn{color:var(--warn)}.bad{color:var(--bad)}
-.stats{display:flex;gap:12px;flex-wrap:wrap;margin:14px 0}.stats div{flex:1;min-width:110px;border:1px solid var(--line);border-radius:10px;padding:10px 14px}
-.stats b{display:block;font-size:24px}.dl{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
-textarea{width:100%;height:60vh;font:13px/1.4 ui-monospace,monospace;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:10px}
-table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);font-size:14px}
-.banner{border:1px solid var(--warn);color:var(--warn);border-radius:10px;padding:10px 14px;margin-bottom:18px}
-iframe{width:100%;height:70vh;border:1px solid var(--line);border-radius:8px;background:#fff}"""
+_purge = {"last": 0.0}
+HERE = Path(__file__).resolve().parent
 
 
-def page(title: str, body: str) -> str:
-    return (f"<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
-            f"<title>{escape(title)} - SWA Data Analysis</title><style>{CSS}</style></head><body>"
-            f"<header><b>SWA Data Analysis</b><a href='/'>Analyse</a><a href='/history'>Past runs</a><a href='/settings'>Settings</a></header>"
-            f"<main>{body}</main></body></html>")
+def pretty(name: str) -> str:
+    s = re.sub(r"[_\-]+", " ", name).strip()
+    return (s[:1].upper() + s[1:]) if s else name
+
+
+def purge_old(root: Path, hours: int) -> None:
+    """Delete finished runs older than `hours` (and empty visitor folders)."""
+    if not hours or not root.is_dir():
+        return
+    cutoff = time.time() - hours * 3600
+    for sd in root.iterdir():
+        if not sd.is_dir():
+            continue
+        for rd in sd.iterdir():
+            try:
+                if rd.is_dir() and rd.stat().st_mtime < cutoff:
+                    shutil.rmtree(rd, ignore_errors=True)
+            except OSError:
+                pass
+        try:
+            if not any(sd.iterdir()):
+                sd.rmdir()
+        except OSError:
+            pass
 
 
 def create_app(config_path: str) -> Flask:
     config_path = str(Path(config_path).resolve())
-    app = Flask(__name__)
+    cdir = Path(config_path).parent
+    app = Flask(__name__, static_folder=None)
     app.config["MAX_CONTENT_LENGTH"] = int(os.environ.get("SWA_MAX_MB", "50")) * 1024 * 1024
-    password = os.environ.get("SWA_PASSWORD", "")
+    site_pw = os.environ.get("SWA_PASSWORD", "")
+    admin_pw = os.environ.get("SWA_ADMIN_PASSWORD", "")
+    secret = (os.environ.get("SWA_SECRET") or secrets.token_hex(32)).encode()
+    retention = int(os.environ.get("SWA_RETENTION_HOURS", "48") or 0)
+    ads = Ads(Path(os.environ.get("SWA_ADS_FILE") or cdir / "ads.json"))
+    ads_dir = Path(os.environ.get("SWA_ADS_DIR") or cdir / "ads")
+    profiles_dir = Path(os.environ.get("SWA_PROFILES_DIR") or cdir / "profiles")
 
-    def cfg():
-        return load_config(config_path)
+    # ------------------------------------------------------------------ helpers
+    def cfg(path: str | None = None):
+        return load_config(path or config_path)
 
-    def outputs() -> Path:
-        return Path(cfg()["outputs"])
+    def profiles() -> dict:
+        out = {"standard": ("Standard analysis", config_path)}
+        if profiles_dir.is_dir():
+            for p in sorted(list(profiles_dir.glob("*.yaml")) + list(profiles_dir.glob("*.yml"))):
+                key = re.sub(r"[^a-z0-9_\-]", "", p.stem.lower())
+                if key and key not in out:
+                    out[key] = (pretty(p.stem), str(p))
+        return out
 
+    def sessions_root() -> Path:
+        return Path(cfg()["outputs"]) / "sessions"
+
+    def my_dir() -> Path:
+        return sessions_root() / g.sid
+
+    def token() -> str:
+        return hmac.new(secret, g.sid.encode(), hashlib.sha256).hexdigest()[:32]
+
+    def csrf_ok() -> bool:
+        return hmac.compare_digest(request.form.get("csrf", ""), token())
+
+    def local_request() -> bool:
+        return request.remote_addr in ("127.0.0.1", "::1") and not request.headers.get("X-Forwarded-For")
+
+    def admin_ok() -> bool:
+        if admin_pw:
+            a = request.authorization
+            return bool(a and secrets.compare_digest(a.password or "", admin_pw))
+        if site_pw:
+            return True            # already passed the site-wide password
+        return local_request()
+
+    def admin_visible() -> bool:
+        return bool(admin_pw) or local_request() or bool(site_pw)
+
+    def render(title, body, active="", noindex=False, home=False, result=False, status=200):
+        top = ads.render("top") if home else ""
+        html = frame(title, body, active=active, show_admin=admin_visible(), top_ad=top,
+                     footer_ad=ads.render("footer"), retention_hours=retention, noindex=noindex or not home)
+        return Response(html, status=status, mimetype="text/html")
+
+    def message(title, text, code=200, button=("/", "Back to start")):
+        body = (f"<section class='pagehead'><h1>{escape(title)}</h1><p>{escape(text)}</p></section>"
+                f"<p style='text-align:center'><a class='btn' href='{button[0]}'>{escape(button[1])}</a></p>")
+        return render(title, body, status=code)
+
+    # ------------------------------------------------------------------ request hooks
     @app.before_request
     def guard():
-        if password:
+        if request.endpoint in ("healthz", "static_font", "robots"):
+            return None
+        if site_pw:
             a = request.authorization
-            if not a or not secrets.compare_digest(a.password or "", password):
+            pw = (a.password or "") if a else ""
+            if not (secrets.compare_digest(pw, site_pw) or (admin_pw and secrets.compare_digest(pw, admin_pw))):
                 return Response("Password required.", 401, {"WWW-Authenticate": 'Basic realm="SWA"'})
+        sid = request.cookies.get("swa_sid", "")
+        g.new_sid = None
+        if not SID_RE.match(sid):
+            sid = secrets.token_hex(16)
+            g.new_sid = sid
+        g.sid = sid
+        if retention and time.time() - _purge["last"] > 600:
+            _purge["last"] = time.time()
+            try:
+                purge_old(sessions_root(), retention)
+            except Exception:       # cleanup must never break a request
+                pass
+        return None
 
     @app.after_request
     def headers(r):
         r.headers["X-Content-Type-Options"] = "nosniff"
-        r.headers["Cache-Control"] = "no-store"
+        r.headers["X-Frame-Options"] = "SAMEORIGIN"
+        r.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        if request.endpoint not in ("static_font", "ads_media"):
+            r.headers["Cache-Control"] = "no-store"
+        if getattr(g, "new_sid", None):
+            secure = request.is_secure or request.headers.get("X-Forwarded-Proto", "") == "https"
+            r.set_cookie("swa_sid", g.new_sid, max_age=7 * 86400, httponly=True, samesite="Lax", secure=secure)
         return r
+
+    @app.errorhandler(404)
+    def not_found(_):
+        return message("Page not found", "This page does not exist, or the result has expired or belongs to another browser.", 404)
+
+    @app.errorhandler(413)
+    def too_big(_):
+        return message("That file is too large", f"The upload limit is {app.config['MAX_CONTENT_LENGTH'] // 1048576} MB.", 413)
 
     def run_dir(run_id: str) -> Path:
         if not RUN_ID.match(run_id):
             abort(404)
-        d = outputs() / run_id
+        d = my_dir() / run_id
         if not d.is_dir():
             abort(404)
         return d
 
+    # ------------------------------------------------------------------ static bits
+    @app.get("/static/figtree.woff2", endpoint="static_font")
+    def static_font():
+        r = send_from_directory(HERE / "static", "figtree.woff2", mimetype="font/woff2")
+        r.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        return r
+
+    @app.get("/ads-media/<name>", endpoint="ads_media")
+    def ads_media(name):
+        if not re.match(r"^[A-Za-z0-9._\-]{1,100}$", name) or Path(name).suffix.lower() not in IMG_EXT:
+            abort(404)
+        r = send_from_directory(ads_dir, name)
+        r.headers["Content-Security-Policy"] = "default-src 'none'; sandbox"
+        r.headers["Cache-Control"] = "public, max-age=3600"
+        return r
+
+    @app.get("/healthz")
+    def healthz():
+        return "ok"
+
+    @app.get("/robots.txt", endpoint="robots")
+    def robots():
+        return Response("User-agent: *\nDisallow: /runs/\nDisallow: /history\nDisallow: /settings\nDisallow: /analyse\n", mimetype="text/plain")
+
+    # ------------------------------------------------------------------ home
     @app.get("/")
     def home():
         try:
             c = cfg()
         except ConfigError as exc:
-            return page("Error", f"<div class='card'><h2 class='bad'>The saved settings have a problem</h2><p>{escape(str(exc))}</p>"
-                                 "<a class='btn' href='/settings'>Fix settings</a></div>")
-        banner = ("<div class='banner'>The privacy salt is still the placeholder. Open <a href='/settings'>Settings</a> and set a long secret "
-                  "phrase before using real data.</div>") if c["privacy_salt"] in ("", PLACEHOLDER_SALT) else ""
-        cols = ", ".join(escape(str(x["name"])) for x in c["columns"])
-        return page("Analyse", f"""{banner}<div class='card'><h1>{escape(c['dataset_name'])}</h1>
-<p class='mut'>Drop your data file here. You get a verified Excel report, an HTML report, clean data and a list of rejected rows.</p>
+            if admin_ok():
+                return message("The saved settings have a problem", str(exc), 500, ("/settings", "Fix settings"))
+            return message("This site is being updated", "Please try again in a few minutes.", 503)
+        profs = profiles()
+        maxmb = app.config["MAX_CONTENT_LENGTH"] // 1048576
+        banner = ""
+        if admin_ok() and c["privacy_salt"] in ("", PLACEHOLDER_SALT):
+            banner = ("<div class='banner'>The privacy salt is still the placeholder. Open <a href='/settings'>Settings</a> "
+                      "and set a long secret phrase before using real data.</div>")
+        select, col_notes = "", ""
+        if len(profs) > 1:
+            select = ("<select class='prof' name='profile' id='prof' aria-label='Type of data'>"
+                      + "".join(f"<option value='{escape(k)}'>{escape(v[0])}</option>" for k, v in profs.items()) + "</select>")
+        for i, (k, (label, path)) in enumerate(profs.items()):
+            try:
+                names = ", ".join(escape(str(x["name"])) for x in cfg(path)["columns"])
+            except ConfigError:
+                continue
+            col_notes += f"<p data-prof='{escape(k)}'{' hidden' if i else ''}><b>{escape(label)}:</b> {names}</p>"
+        body = f"""{banner}
+<section class='hero'>
+<span class='eyebrow'><i></i> Verified data analysis for NGOs, researchers &amp; teams</span>
+<h1 class='big'>Turn raw data into <span class='grad'>verified insights</span></h1>
+<p class='lead'>Upload a CSV, Excel or JSON file. Get pivot tables, charts, programme indicators and a full integrity check &mdash; in seconds.</p>
+<a class='btn' id='cta' href='#drop'>{ICON['upload']} Upload your data</a>
+<div class='trust'><span>{ICON['check2']} Every figure calculated twice</span><span>{ICON['shield']} Personal data can be masked</span><span>{ICON['check2']} File deleted right after analysis</span></div>
+</section>
+<section class='stage reveal' aria-label='Upload'>
+<div class='chip c1'><small>Pivot tables</small><div class='bars'><i></i><i></i><i></i><i></i><i></i></div></div>
+<div class='chip c2'><small>Integrity checks</small><b>&#10003; PASSED</b></div>
+<div class='chip c3'><small>Indicators</small>by sex, age &amp; location</div>
+<div class='chip c4'><small>Reports</small>Excel + HTML</div>
 <form id='f' method='post' action='/analyse' enctype='multipart/form-data'>
-<label id='drop' for='file'><b>Choose a file</b> or drag it here<br><span class='mut'>CSV, Excel or JSON - up to {app.config['MAX_CONTENT_LENGTH'] // 1048576} MB</span><br><span id='name' class='mut'></span></label>
-<input id='file' name='file' type='file' accept='.csv,.tsv,.txt,.xlsx,.xlsm,.xls,.json' hidden required>
-<p><button id='go' disabled>Analyse</button> <span id='busy' class='mut' hidden>Analysing - this can take a minute for big files...</span></p></form>
-<p class='mut'>Columns expected: {cols}</p></div>
-<script>const f=document.getElementById('file'),d=document.getElementById('drop'),g=document.getElementById('go');
-function show(){{if(f.files[0]){{document.getElementById('name').textContent=f.files[0].name;g.disabled=false}}}}
-f.onchange=show;['dragenter','dragover'].forEach(e=>d.addEventListener(e,x=>{{x.preventDefault();d.classList.add('over')}}));
-['dragleave','drop'].forEach(e=>d.addEventListener(e,x=>{{x.preventDefault();d.classList.remove('over')}}));
-d.addEventListener('drop',x=>{{f.files=x.dataTransfer.files;show()}});
-document.getElementById('f').onsubmit=()=>{{g.disabled=true;document.getElementById('busy').hidden=false}};</script>""")
+<input type='hidden' name='csrf' value='{token()}'>
+<div class='drop' id='drop' data-max='{app.config["MAX_CONTENT_LENGTH"]}'>
+<div class='prompt' id='prompt'><span>Drop your CSV, Excel or JSON file here</span><i class='caret'></i></div>
+<div class='file' id='chip'>{ICON['sheet']}<div><b id='fname'></b><small id='fsize'></small></div></div>
+<input class='title-in' name='title' maxlength='100' placeholder='Name this analysis (optional) &mdash; e.g. Q3 Outreach Report' autocomplete='off' aria-label='Name this analysis (optional)'>
+<div class='err' id='err' role='alert'></div>
+<div class='row'>
+<input id='file' name='file' type='file' class='sr-only' accept='.csv,.tsv,.txt,.xlsx,.xlsm,.xls,.json' required>
+<label class='add' for='file' title='Choose a file' aria-label='Choose a file'>{ICON['plus']}</label>
+<div class='fmt'><b>CSV</b><b>XLSX</b><b>JSON</b><span>up to {maxmb} MB</span></div>
+{select}
+<button class='go' id='go' disabled aria-label='Analyse my data'>{ICON['arrow']}</button>
+</div></div></form>
+<p class='note'>Private by design: your file is deleted as soon as the analysis ends{f' and results are removed after {retention} hours' if retention else ''}.</p>
+<details class='cols'><summary>Which columns does my file need?</summary>{col_notes}</details>
+</section>
+{ads.render('home_below')}
+<div class='overlay' id='overlay' role='status' aria-live='polite'><div class='loader'><i></i><i></i><i></i><i></i><i></i></div>
+<h3>Analysing and verifying your data&hellip;</h3><p id='tip'>Rejected rows are listed with the reason, so nothing disappears silently.</p></div>
+<section class='sec' id='features'><h2 class='reveal'>Built so you can trust the numbers</h2>
+<p class='sub reveal'>Analysis mistakes are expensive. Every run is checked before you see it.</p>
+<div class='grid4'>
+<div class='card reveal'><div class='ico i1'>{ICON['check2']}</div><h3>Calculated twice</h3><p>Pivots and indicators are computed by two independent methods. Any disagreement stops the report.</p></div>
+<div class='card reveal'><div class='ico i2'>{ICON['shield']}</div><h3>Privacy controls</h3><p>Hash, mask or drop names and phone numbers in every output, including rejected rows.</p></div>
+<div class='card reveal'><div class='ico i3'>{ICON['kobo']}</div><h3>Kobo &amp; ODK ready</h3><p>Understands survey exports: group headers, timestamps and multi-select questions.</p></div>
+<div class='card reveal'><div class='ico i4'>{ICON['sheet']}</div><h3>Reports you can share</h3><p>Excel with live formulas and charts, plus a single-page HTML report for e-mail.</p></div>
+</div></section>
+<section class='sec' id='how'><h2 class='reveal'>From raw file to verified report in 3 steps</h2><p class='sub reveal'>No setup on your side &mdash; just your data.</p>
+<div class='steps'>
+<div class='card step reveal'><h3>Upload</h3><p>Drop a CSV, Excel or JSON file. Optionally give the analysis a name.</p></div>
+<div class='card step reveal'><h3>We clean &amp; verify</h3><p>Bad rows are set aside with reasons, never silently changed. Totals must reconcile.</p></div>
+<div class='card step reveal'><h3>Download</h3><p>Get the Excel and HTML reports, clean data, rejected rows and an audit record.</p></div>
+</div></section>
+<section class='promo reveal'><div><h3>More from swasamson.site</h3><p>Tools, projects and resources for data, community programming and digital skills. Come and take a look.</p></div>
+<a class='btn' href='{SITE_UTM}' target='_blank' rel='noopener'>Visit swasamson.site {ICON['ext']}</a></section>"""
+        return render("Verified insights from raw data", body, active="home", home=True)
 
+    # ------------------------------------------------------------------ analyse
     @app.post("/analyse")
     def analyse():
+        if not csrf_ok():
+            return message("Please try again", "Your session expired. Go back, reload the page and upload again.", 400)
         up = request.files.get("file")
         if not up or not up.filename:
             return redirect("/")
         suffix = Path(up.filename).suffix.lower()
         if suffix not in ALLOWED:
-            return page("Error", f"<div class='card'><h2 class='bad'>Unsupported file type '{escape(suffix)}'</h2>"
-                                 "<p>Please upload a .csv, .xlsx or .json file.</p><a class='btn' href='/'>Back</a></div>"), 400
+            return message(f"Unsupported file type '{suffix}'", "Please upload a .csv, .xlsx or .json file.", 400)
         stem = re.sub(r"[^A-Za-z0-9_\-]+", "_", Path(up.filename).stem)[:60] or "upload"
+        key = request.form.get("profile", "standard")
+        profs = profiles()
+        path = profs.get(key, profs["standard"])[1]
         try:
-            c = cfg()
+            c = cfg(path)
         except ConfigError as exc:
-            return page("Error", f"<div class='card'><p class='bad'>{escape(str(exc))}</p></div>"), 400
+            return message("The settings have a problem", str(exc), 400)
+        title = re.sub(r"[\x00-\x1f\x7f]", " ", request.form.get("title", "")).strip()[:100]
+        c["dataset_name"] = title or pretty(Path(up.filename).stem)[:80] or "Data analysis"
+        c["outputs"] = str(my_dir())
+        if c["organisation"] in ("Your Organisation Name",):
+            c["organisation"] = ""                      # never print the template placeholder on visitors' reports
         with _lock, tempfile.TemporaryDirectory() as tmp:       # the raw upload is deleted as soon as the run ends
             src = Path(tmp) / f"{stem}{suffix}"
             up.save(src)
-            Path(c["outputs"]).mkdir(parents=True, exist_ok=True)
+            my_dir().mkdir(parents=True, exist_ok=True)
             res = process_file(src, c)
         return redirect(f"/runs/{res.out_dir.name}")
 
+    # ------------------------------------------------------------------ results
     @app.get("/runs/<run_id>")
     def show_run(run_id):
         d = run_dir(run_id)
@@ -144,23 +330,39 @@ document.getElementById('f').onsubmit=()=>{{g.disabled=true;document.getElementB
         status = audit.get("status", "UNKNOWN")
         cls = "ok" if status == "PASSED" else "warn" if "WARNINGS" in status else "bad"
         rows = audit.get("rows", {})
-        stats = "".join(f"<div><b>{rows.get(k, '-')}</b><span class='mut'>{lbl}</span></div>"
-                        for k, lbl in (("read", "rows read"), ("analysed", "analysed"), ("quarantined", "rejected"), ("blank", "blank")))
+        stats = "".join(
+            f"<div class='stat reveal'><b data-count='{rows.get(k, 0)}'>{rows.get(k, '-')}</b><span>{lbl}</span></div>"
+            for k, lbl in (("read", "rows read"), ("analysed", "rows analysed"), ("quarantined", "rows set aside"), ("blank", "blank rows")))
         msg = ""
         if audit.get("error"):
-            msg = f"<p class='bad'><b>Could not process this file.</b> {escape(audit['error'])}</p><p class='mut'>No report was produced, so no unverified numbers exist. Check that the column names in Settings match your file's headers.</p>"
+            msg = (f"<div class='msgbad'><b>Could not process this file.</b> {escape(audit['error'])}<br>"
+                   "<span style='color:var(--mut)'>No report was produced, so no unverified numbers exist. "
+                   "Check that your column headers match what the analysis expects.</span></div>")
         warns = "".join(f"<li>{escape(str(w))}</li>" for w in audit.get("warnings", [])[:15])
         if warns:
-            msg += f"<h2>Warnings</h2><ul>{warns}</ul>"
+            msg += f"<div class='panel'><h2>Things to know</h2><ul>{warns}</ul></div>"
         failed = [x for x in audit.get("checks", []) if not x.get("passed")]
         if failed:
-            msg += "<p class='bad'><b>Do not use these numbers.</b> Checks failed: " + escape(", ".join(x["name"] for x in failed)) + "</p>"
-        links = "".join(f"<a class='btn sec' href='/runs/{run_id}/file/{n}'>{lbl}</a>" for n, lbl in FILES.items() if (d / n).exists())
-        links += f"<a class='btn' href='/runs/{run_id}/zip'>Download everything (.zip)</a>"
-        view = f"<div class='card'><iframe src='/runs/{run_id}/view' title='Report'></iframe></div>" if (d / "report.html").exists() else ""
-        return page("Result", f"""<div class='card'><h1>Result <span class='tag {cls}'>{escape(status)}</span></h1>
-<p class='mut'>{escape(audit.get('source_file', ''))} - {escape(audit.get('run_time', ''))}</p><div class='stats'>{stats}</div>{msg}
-<div class='dl'>{links}</div></div>{view}""")
+            msg += ("<div class='msgbad'><b>Do not use these numbers.</b> Checks failed: "
+                    + escape(", ".join(x["name"] for x in failed)) + "</div>")
+        btns = ""
+        for n, lbl in FILES.items():
+            if (d / n).exists():
+                primary = "" if n == "report.xlsx" else " ghost"
+                btns += f"<a class='btn sm{primary}' href='/runs/{run_id}/file/{n}'>{ICON['download']} {lbl}</a>"
+        btns += f"<a class='btn sm' href='/runs/{run_id}/zip'>{ICON['download']} Download everything (.zip)</a>"
+        view = (f"<div class='reportbox'><iframe src='/runs/{run_id}/view' title='Report' sandbox referrerpolicy='no-referrer'></iframe></div>"
+                f"<p class='keep'><a href='/runs/{run_id}/view' target='_blank' rel='noopener'>Open the report in a full page</a></p>") if (d / "report.html").exists() else ""
+        keep = f"This result is deleted automatically after {retention} hours." if retention else ""
+        name = escape(audit.get("dataset_name") or "Your analysis")
+        when = escape(str(audit.get("run_time", "")).replace("T", " ")[:16])
+        body = f"""<section class='pagehead'><span class='status {cls}'>{escape(status)}</span>
+<h1>{name}</h1><p>Analysis ready &middot; {escape(audit.get('source_file', ''))} &middot; {when}</p></section>
+<div class='stats'>{stats}</div>{msg}
+<div class='panel'><h2>Download your results</h2><div class='dl'>{btns}</div><p class='keep' style='text-align:left'>{escape(keep)}</p></div>
+{view}{ads.render('result_below')}
+<p style='text-align:center;margin-top:26px'><a class='btn' href='/'>{ICON['upload']} Analyse another file</a></p>"""
+        return render("Result", body, active="home", noindex=True)
 
     @app.get("/runs/<run_id>/view")
     def view_report(run_id):
@@ -193,7 +395,7 @@ document.getElementById('f').onsubmit=()=>{{g.disabled=true;document.getElementB
 
     @app.get("/history")
     def history():
-        out = outputs()
+        out = my_dir()
         runs = sorted((p for p in out.iterdir() if p.is_dir()), reverse=True) if out.is_dir() else []
         rows = ""
         for p in runs[:100]:
@@ -203,13 +405,24 @@ document.getElementById('f').onsubmit=()=>{{g.disabled=true;document.getElementB
                 st = "?"
             cls = "ok" if st == "PASSED" else "warn" if "WARNINGS" in st else "bad"
             rows += f"<tr><td><a href='/runs/{escape(p.name)}'>{escape(p.name)}</a></td><td class='{cls}'>{escape(st)}</td></tr>"
-        return page("Past runs", f"<div class='card'><h1>Past runs</h1><table>{rows or '<tr><td class=mut>Nothing yet.</td></tr>'}</table></div>")
+        note = "Only analyses made in this browser are listed." + (f" They are deleted after {retention} hours." if retention else "")
+        body = (f"<section class='pagehead'><h1>Past runs</h1><p>{escape(note)}</p></section>"
+                f"<div class='panel'><table class='runs'>{rows or '<tr><td style=color:var(--mut)>Nothing yet - upload a file to get started.</td></tr>'}</table></div>")
+        return render("Past runs", body, active="history", noindex=True)
 
+    # ------------------------------------------------------------------ settings (owner only)
     @app.route("/settings", methods=["GET", "POST"])
     def settings():
+        if not admin_ok():
+            if admin_pw:
+                return Response("Admin password required.", 401, {"WWW-Authenticate": 'Basic realm="SWA admin"'})
+            return message("Settings are locked", "On a public website the settings can only be changed by the owner. "
+                           "Set the SWA_ADMIN_PASSWORD environment variable on the server, then open this page again.", 403)
         note = ""
         text = Path(config_path).read_text(encoding="utf-8-sig")
         if request.method == "POST":
+            if not csrf_ok():
+                return message("Please try again", "Your session expired. Reload the settings page.", 400, ("/settings", "Reload"))
             text = request.form.get("text", "")
             fd, tmp = tempfile.mkstemp(suffix=".yaml", dir=str(Path(config_path).parent))
             try:
@@ -228,17 +441,23 @@ document.getElementById('f').onsubmit=()=>{{g.disabled=true;document.getElementB
             finally:
                 if os.path.exists(tmp):
                     os.remove(tmp)
-        return page("Settings", f"""<div class='card'><h1>Settings</h1><p class='mut'>This is your config.yaml. Each <code>source:</code> must match a column header in your data file exactly.</p>{note}
-<form method='post'><textarea name='text' spellcheck='false'>{escape(text)}</textarea><p><button name='action' value='check'>Check</button>
-<button name='action' value='save'>Save</button></p></form></div>""")
+        ad_note = ""
+        if ads.problems:
+            ad_note = "<div class='msgbad'><b>ads.json problem:</b> " + escape("; ".join(ads.problems)) + "</div>"
+        body = f"""<section class='pagehead'><h1>Settings</h1><p>This is your config.yaml. Each <code>source:</code> must match a column header in your data file exactly.</p></section>
+<div class='panel'>{note}{ad_note}<form method='post'><input type='hidden' name='csrf' value='{token()}'>
+<textarea class='code' name='text' spellcheck='false'>{escape(text)}</textarea>
+<p class='dl'><button class='btn sm ghost' name='action' value='check'>Check</button><button class='btn sm' name='action' value='save'>Save</button></p></form></div>"""
+        return render("Settings", body, active="settings", noindex=True)
 
     return app
 
 
 def serve(config_path: str, host: str = "127.0.0.1", port: int = 8080) -> None:
     app = create_app(config_path)
-    if host not in ("127.0.0.1", "localhost") and not os.environ.get("SWA_PASSWORD"):
-        print("WARNING: serving beyond this computer WITHOUT a password. Set SWA_PASSWORD first.")
+    if host not in ("127.0.0.1", "localhost") and not (os.environ.get("SWA_PASSWORD") or os.environ.get("SWA_ADMIN_PASSWORD")):
+        print("NOTE: serving beyond this computer. Visitors cannot see each other's results, and Settings stay locked "
+              "until you set SWA_ADMIN_PASSWORD.")
     try:
         from waitress import serve as wserve
         wserve(app, host=host, port=port, threads=4)

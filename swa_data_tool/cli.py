@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -29,7 +30,7 @@ def main(argv=None) -> int:
     p = sub.add_parser("watch", help="Run in the background; analyse files as they arrive in the inbox.")
     p.add_argument("--config", "-c", default="config.yaml"); p.add_argument("--interval", type=float, default=15.0)
     p = sub.add_parser("serve", help="Start the web interface (upload a file in your browser, get the report).")
-    p.add_argument("--config", "-c", default="config.yaml"); p.add_argument("--host", default="127.0.0.1"); p.add_argument("--port", type=int, default=8080)
+    p.add_argument("--config", "-c", default="config.yaml"); p.add_argument("--host", default="0.0.0.0" if os.environ.get("PORT") else "127.0.0.1"); p.add_argument("--port", type=int, default=int(os.environ.get("PORT", 8080)))
     p = sub.add_parser("check-config", help="Validate a configuration file without running anything.")
     p.add_argument("--config", "-c", default="config.yaml")
     p = sub.add_parser("init", help="Create a ready-to-use project folder with an example configuration.")

@@ -2,7 +2,7 @@
 #  SWA Data Analysis Tool - NGO / programme data example
 #  (KoboToolbox-style beneficiary register). Describe your data ONCE.
 # ===================================================================
-dataset_name: "Youth Programme - Beneficiary Register"
+dataset_name: "Data Analysis Report"
 organisation: "Your Organisation Name"
 
 folders: {inbox: inbox, outputs: outputs}
