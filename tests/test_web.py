@@ -242,6 +242,25 @@ class Web(unittest.TestCase):
             c.post("/admin/ads/add", data={"csrf": tok, "slot": "top", "type": "image", "image": (io.BytesIO(blob), name)}, content_type="multipart/form-data")
         self.assertEqual(len(json.loads((d / "ads.json").read_text())["slots"]["top"]), 1)
 
+    def test_large_image_is_compressed_and_clear_slot(self):
+        import os
+        from PIL import Image
+        d, c = self.admin_client()
+        tok = self.csrf(c)
+        im = Image.frombytes("RGB", (3000, 1200), os.urandom(3000 * 1200 * 3))          # ~10 MB of noise
+        b = io.BytesIO(); im.save(b, format="PNG")
+        self.assertGreater(len(b.getvalue()), 3 * 1024 * 1024)
+        c.post("/admin/ads/add", data={"csrf": tok, "slot": "home_below", "type": "image", "image": (io.BytesIO(b.getvalue()), "huge.png")}, content_type="multipart/form-data")
+        c.post("/admin/ads/add", data={"csrf": tok, "slot": "home_below", "type": "text", "title": "Two", "href": "https://t.example.org"})
+        saved = json.loads((d / "ads.json").read_text())["slots"]["home_below"]
+        self.assertEqual(len(saved), 2)
+        f = d / "ads" / saved[0]["src"].rsplit("/", 1)[1]
+        self.assertLess(f.stat().st_size, 250 * 1024)
+        self.assertLessEqual(max(Image.open(f).size), 1940)
+        c.post("/admin/ads/clear", data={"csrf": tok, "slot": "home_below"})
+        self.assertEqual(json.loads((d / "ads.json").read_text())["slots"]["home_below"], [])
+        self.assertFalse(f.exists())
+
     def test_delete_removes_image_file(self):
         d, c = self.admin_client()
         tok = self.csrf(c)
@@ -281,6 +300,18 @@ class Web(unittest.TestCase):
         self.assertEqual(json.loads((d / "ads.json").read_text())["slots"]["top"], [])
         self.assertFalse((d.parent / "evil.png").exists())
         self.assertFalse((d / "ads" / "fake.png").exists())
+
+    def test_admin_can_delete_one_or_all_ads_any_time(self):
+        d, c = self.admin_client()
+        tok = self.csrf(c)
+        for n in ("A", "B", "C"):
+            c.post("/admin/ads/add", data={"csrf": tok, "slot": "footer", "type": "text", "title": "Ad " + n, "href": "https://x.example.org"})
+        ads = json.loads((d / "ads.json").read_text())["slots"]["footer"]
+        self.assertEqual(len(ads), 3)
+        c.post("/admin/ads/delete", data={"csrf": tok, "slot": "footer", "id": ads[0]["id"]})
+        self.assertEqual(len(json.loads((d / "ads.json").read_text())["slots"]["footer"]), 2)
+        c.post("/admin/ads/clear", data={"csrf": tok, "slot": "footer"})
+        self.assertEqual(json.loads((d / "ads.json").read_text())["slots"]["footer"], [])
 
     def test_admin_options_and_settings_editor(self):
         d, c = self.admin_client()

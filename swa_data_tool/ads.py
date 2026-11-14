@@ -39,7 +39,9 @@ SLOT_INFO = {
 IMG_EXT = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
 UPLOAD_EXT = {"PNG": ".png", "JPEG": ".jpg", "WEBP": ".webp"}
 TYPES = {"image", "text", "html"}
-MAX_IMG_BYTES = 600 * 1024
+MAX_UPLOAD_BYTES = 15 * 1024 * 1024      # what an admin may upload; it is compressed automatically
+TARGET_BYTES = 180 * 1024                # stored banners are squeezed to about this size
+MAX_SIDE = 1940                          # longest side kept (2x the widest slot, sharp on phones)
 NAME_RE = re.compile(r"^[A-Za-z0-9._\-]{1,100}$")
 
 
@@ -245,32 +247,58 @@ class Ads:
 
 
 # ---------------------------------------------------------------------- images & backups
+def _compress(im, fmt: str):
+    """Shrink and re-encode until the file is small. Returns (bytes, format)."""
+    from PIL import Image, ImageOps
+    im = ImageOps.exif_transpose(im)
+    has_alpha = im.mode in ("RGBA", "LA") or (im.mode == "P" and "transparency" in im.info)
+    im = im.convert("RGBA" if has_alpha else "RGB")
+    im.thumbnail((MAX_SIDE, MAX_SIDE), Image.LANCZOS)
+    if fmt == "PNG":                                   # try a lossless PNG first (crisp logos / text)
+        out = io.BytesIO()
+        im.save(out, format="PNG", optimize=True)
+        if out.tell() <= TARGET_BYTES:
+            return out.getvalue(), "PNG"
+    out_fmt = "JPEG" if (fmt == "JPEG" and not has_alpha) else "WEBP"
+    best = b""
+    for _ in range(6):                                 # lower quality first, then reduce dimensions
+        for q in (88, 78, 68, 58, 48):
+            out = io.BytesIO()
+            im.save(out, format=out_fmt, quality=q, **({"optimize": True} if out_fmt == "JPEG" else {"method": 4}))
+            best = out.getvalue()
+            if len(best) <= TARGET_BYTES:
+                return best, out_fmt
+        if min(im.size) < 80:
+            break
+        im = im.resize((max(40, int(im.width * 0.85)), max(40, int(im.height * 0.85))), Image.LANCZOS)
+    return best, out_fmt
+
+
 def process_image_upload(data: bytes, image_dir: Path):
-    """Verify and RE-ENCODE an uploaded banner (this strips hidden payloads). Returns (url_path|None, message, size|None)."""
+    """Verify, AUTO-COMPRESS and RE-ENCODE an uploaded banner (this strips hidden payloads). Returns (url_path|None, message, size|None)."""
     from PIL import Image, UnidentifiedImageError
     if not data:
         return None, "No image was selected.", None
-    if len(data) > MAX_IMG_BYTES:
-        return None, f"The image is larger than {MAX_IMG_BYTES // 1024} KB. Please compress it.", None
+    if len(data) > MAX_UPLOAD_BYTES:
+        return None, f"The image is larger than {MAX_UPLOAD_BYTES // (1024 * 1024)} MB. Please choose a smaller file.", None
     try:
         probe = Image.open(io.BytesIO(data))
         fmt, size = probe.format, probe.size
         probe.verify()
         if fmt not in UPLOAD_EXT:
             return None, "Only PNG, JPG or WEBP images are accepted.", None
-        if not (20 <= size[0] <= 3000 and 20 <= size[1] <= 3000):
-            return None, "Image dimensions must be between 20 and 3000 pixels.", None
+        if not (20 <= size[0] <= 8000 and 20 <= size[1] <= 8000):
+            return None, "Image dimensions must be between 20 and 8000 pixels.", None
         im = Image.open(io.BytesIO(data))
         im.load()
-        if fmt == "JPEG" and im.mode not in ("RGB", "L"):
-            im = im.convert("RGB")
-        out = io.BytesIO()
-        im.save(out, format=fmt, **({"quality": 90, "optimize": True} if fmt in ("JPEG", "WEBP") else {"optimize": True}))
+        blob, out_fmt = _compress(im, fmt)
     except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError):
         return None, "That file is not a valid image.", None
+    if not blob:
+        return None, "That image could not be compressed.", None
     image_dir.mkdir(parents=True, exist_ok=True)
-    name = f"ad-{secrets.token_hex(6)}{UPLOAD_EXT[fmt]}"
-    (image_dir / name).write_bytes(out.getvalue())
+    name = f"ad-{secrets.token_hex(6)}{UPLOAD_EXT[out_fmt]}"
+    (image_dir / name).write_bytes(blob)
     return f"/ads-media/{name}", "ok", size
 
 
