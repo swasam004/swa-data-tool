@@ -28,6 +28,10 @@ Only you can open it. There is **no link to it on the public site** (it appears 
 ### Important: where ads are saved
 Render's free plan has a **temporary disk**: ads added in the panel disappear when the service restarts or redeploys.
 Choose one:
+* **Free database (recommended)**: create a free Neon (neon.tech) or Supabase project, copy its PostgreSQL connection string
+  (starts with `postgresql://`), and in Render > Environment add `SWA_DATABASE_URL` = that string. Ads and images are then
+  saved in the database after every change and reloaded on every start. The admin checklist shows "Ads storage is permanent".
+  On Supabase use the *Session pooler* connection string. Do not use Render's own free Postgres (it expires after 30 days).
 * **Back up after every change** (Backup & restore) and restore when needed; or commit the downloaded `ads.json` and
   `ads/` images into the repo (they become the starting set on every deploy); or
 * **Attach a Render persistent disk** (paid), mount it at `/var/data`, and set `SWA_DATA_DIR=/var/data`. Ads then

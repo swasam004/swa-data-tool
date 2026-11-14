@@ -179,11 +179,15 @@ def register_admin(app, X):
         else:
             add("warn", "Privacy salt is not set", "Your profiles hash personal data. In Render &rarr; Environment add <code>SWA_PRIVACY_SALT</code> with a long secret phrase.")
         add("ok" if admin_pw else "warn", "Admin password", "Set." if admin_pw else "Not set. Add SWA_ADMIN_PASSWORD in Render &rarr; Environment.")
-        if X["persistent"]:
+        if ads.db and ads.sync_error:
+            add("warn", "Ads database problem", escape(ads.sync_error) + " Check the <code>SWA_DATABASE_URL</code> value in Render &rarr; Environment.")
+        elif ads.db:
+            add("ok", "Ads storage is permanent", "Ads and their images are saved in your database and survive restarts and redeploys.")
+        elif X["persistent"]:
             add("ok", "Ads storage is permanent", f"Saved in <code>{escape(str(ads.path))}</code>.")
         elif os.environ.get("RENDER"):
             add("warn", "Ads storage is temporary", "On Render's free plan, ads you add here are lost when the service restarts or redeploys. "
-                "Download a backup after each change (Backup section) and restore it if needed, or attach a Render disk and set <code>SWA_DATA_DIR</code>.")
+                "Download a backup after each change (Backup section) and restore it if needed, or connect a free database by setting <code>SWA_DATABASE_URL</code> (see WEB_GUIDE).")
         else:
             add("info", "Ads storage", f"Saved in <code>{escape(str(ads.path))}</code>.")
         add("info", "Results retention", (f"Visitor results are deleted after {X['retention']} hours." if X["retention"] else "Results are kept until you delete them."))

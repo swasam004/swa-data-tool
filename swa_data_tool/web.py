@@ -11,6 +11,7 @@ Environment variables (all optional):
   SWA_PRIVACY_SALT     secret phrase for hashing personal data (overrides privacy_salt in config.yaml - keeps it out of git)
   SWA_RETENTION_HOURS  delete results this many hours after creation (default 48; 0 = keep forever)
   SWA_MAX_MB           upload limit in MB (default 50)
+  SWA_DATABASE_URL     PostgreSQL link (free Neon/Supabase) - ads are saved there too, so they survive restarts on any plan
   SWA_ADS_FILE         path to ads.json (default: ads.json next to config.yaml)
   SWA_ADS_DIR          folder with ad images (default: ads/ next to config.yaml)
   SWA_PROFILES_DIR     folder with extra analysis profiles (*.yaml) shown in a drop-down (default: profiles/)
@@ -35,6 +36,7 @@ from pathlib import Path
 from flask import Flask, Response, abort, g, redirect, request, send_file, send_from_directory
 
 from .ads import IMG_EXT, Ads
+from .ads_db import attach as attach_ads_db
 from .config import ConfigError, load_config
 from .pipeline import process_file
 from .webadmin import register_admin
@@ -93,6 +95,7 @@ def create_app(config_path: str) -> Flask:
         data_dir.mkdir(parents=True, exist_ok=True)
         shutil.copy(cdir / "ads.json", ads_file)
     ads = Ads(ads_file)
+    attach_ads_db(ads, ads_dir)          # no-op unless SWA_DATABASE_URL / DATABASE_URL is set
     profiles_dir = Path(os.environ.get("SWA_PROFILES_DIR") or cdir / "profiles")
 
     # ------------------------------------------------------------------ helpers

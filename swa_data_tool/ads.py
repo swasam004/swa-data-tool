@@ -66,6 +66,9 @@ class Ads:
         self._mtime = None
         self._data: dict = {}
         self.problems: list[str] = []
+        self.db = False                    # True when a database copy is configured (see ads_db.py)
+        self.sync_error = ""
+        self.on_save = None                # called after every save to copy ads to the database
 
     # ------------------------------------------------------------------ reading
     def _load(self) -> None:
@@ -199,6 +202,12 @@ class Ads:
         tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
         os.replace(tmp, self.path)
         self._mtime = None            # force reload
+        if self.on_save:
+            try:
+                self.on_save()
+                self.sync_error = ""
+            except Exception as exc:  # noqa: BLE001 - the local save worked; surface the problem in the admin checklist
+                self.sync_error = f"Saved here, but the database copy failed: {exc}"
 
     @staticmethod
     def validate(ad: dict, image_dir: Path | None = None) -> str | None:

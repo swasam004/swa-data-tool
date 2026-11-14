@@ -6,3 +6,4 @@ PyYAML>=6.0
 matplotlib>=3.7
 Flask>=3.0
 waitress>=3.0
+psycopg[binary]>=3.1
