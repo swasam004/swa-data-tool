@@ -35,9 +35,9 @@ Choose one:
 The admin checklist tells you which situation you are in.
 
 ## 3. Ads - what visitors see
-Slots: `top` (728×90, home page), `home_below` (970×250, under the upload box), `result_below` (728×120, under a report),
+Slots: `top` (small 468×60 strip, home page), `home_below` (970×250, under the upload box), `result_below` (728×120, under a report),
 `footer` (728×90, every page). A slot with several live ads shows one at random per page view. Empty slots show
-"Your ad could be here - Advertise with us" (turn off in the admin panel). Every ad is labelled "Advertisement" and links
+nothing; a single "Advertise with us" link sits in the footer (turn it off in the admin panel). Every ad is labelled "Advertisement" and links
 use `rel="sponsored nofollow noopener"`.
 Embed/script ads run in a **sandboxed frame**: they cannot read visitors' uploads, reports or cookies. Because of that some
 networks (e.g. AdSense) may refuse to show ads there; direct sponsors, image/text ads and most embeds work.

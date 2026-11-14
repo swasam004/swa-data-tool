@@ -133,7 +133,7 @@ def create_app(config_path: str) -> Flask:
     def render(title, body, active="", noindex=False, home=False, result=False, status=200):
         top = ads.render("top") if home else ""
         html = frame(title, body, active=active, show_admin=admin_ok(), top_ad=top,
-                     footer_ad=ads.render("footer"), retention_hours=retention, noindex=noindex or not home)
+                     footer_ad=ads.render("footer"), advertise=ads.advertise_html(), retention_hours=retention, noindex=noindex or not home)
         return Response(html, status=status, mimetype="text/html")
 
     def message(title, text, code=200, button=("/", "Back to start")):

@@ -2,7 +2,7 @@
 
 Manage ads from the admin panel (/admin) - or edit ads.json by hand (no restart needed). Four slots:
 
-  top           wide banner under the header on the home page      (728 x 90)
+  top           SMALL strip under the header on the home page      (468 x 60)
   home_below    large banner under the upload box                  (970 x 250)
   result_below  banner under a finished report                     (728 x 120)
   footer        banner above the footer on every page              (728 x 90)
@@ -29,9 +29,9 @@ from html import escape
 from pathlib import Path
 from urllib.parse import urlparse
 
-SLOTS = {"top": (728, 90), "home_below": (970, 250), "result_below": (728, 120), "footer": (728, 90)}
+SLOTS = {"top": (468, 60), "home_below": (970, 250), "result_below": (728, 120), "footer": (728, 90)}
 SLOT_INFO = {
-    "top": ("Top banner", "Under the header, home page only"),
+    "top": ("Top strip", "Small strip under the header, home page only"),
     "home_below": ("Large banner", "Directly under the upload box, home page"),
     "result_below": ("Results banner", "Under a finished report"),
     "footer": ("Footer banner", "Bottom of every page"),
@@ -112,7 +112,6 @@ class Ads:
     def render(self, slot: str) -> str:
         self._load()
         w, h = SLOTS[slot]
-        placeholders = self._data.get("placeholders", True)
         candidates = []
         for ad in self._active(slot):                    # only ads that render safely take part in the rotation
             inner = self._render_ad(ad, w, h)
@@ -121,14 +120,15 @@ class Ads:
         if candidates:
             ad, inner = random.choice(candidates)
             label = escape(str(ad.get("label") or "Advertisement"))
-            return f"<aside class='ad' style='--w:{w}px' aria-label='{label}'><small>{label}</small>{inner}</aside>"
-        if not placeholders:
+            return f"<aside class='ad ad-{slot}' style='--w:{w}px' aria-label='{label}'><small>{label}</small>{inner}</aside>"
+        return ""                                          # empty slot: visitors see nothing
+
+    def advertise_html(self) -> str:
+        """The ONE 'Advertise with us' link (shown in the footer). Switch off with placeholders=false in ads.json."""
+        self._load()
+        if not self._data.get("placeholders", True):
             return ""
-        contact = escape(self.contact, quote=True)
-        return (f"<aside class='ad' style='--w:{w}px' aria-label='Advertising space'><small>Advertisement</small>"
-                f"<a class='ph' style='aspect-ratio:{w}/{h}' href='{contact}' target='_blank' rel='noopener'>"
-                f"<span class='ph-t'>Your ad could be here</span><span class='ph-s'>{w} &times; {h} &middot; reach NGOs, researchers and data teams</span>"
-                f"<span class='ph-c'>Advertise with us</span></a></aside>")
+        return f"<a class='advlink' href='{escape(self.contact, quote=True)}' target='_blank' rel='noopener'>Advertise with us</a>"
 
     @staticmethod
     def _render_ad(ad: dict, w: int, h: int) -> str:

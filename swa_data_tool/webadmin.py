@@ -219,7 +219,7 @@ def register_admin(app, X):
 <form method='post' action='/admin/ads/toggle'><input type='hidden' name='csrf' value='{tok}'><input type='hidden' name='slot' value='{slot}'><input type='hidden' name='id' value='{escape(str(ad.get('id', '')), quote=True)}'><button class='btn sm ghost'>{'Resume' if ad.get('enabled') is False else 'Pause'}</button></form>
 <form method='post' action='/admin/ads/delete' onsubmit="return confirm('Delete this ad permanently?')"><input type='hidden' name='csrf' value='{tok}'><input type='hidden' name='slot' value='{slot}'><input type='hidden' name='id' value='{escape(str(ad.get('id', '')), quote=True)}'><button class='btn sm danger'>Delete</button></form></div></div>"""
         if not rows:
-            rows = "<p class='hint'>No ads yet - visitors see the \"Your ad could be here\" box.</p>"
+            rows = "<p class='hint'>No ads yet - nothing is shown to visitors in this slot.</p>"
         return f"""<div class='panel' id='slot-{slot}'><h2>{escape(title)} <small>{w}&times;{h} &middot; {escape(where)} &middot; {ads.live_count(slot)} live</small></h2>
 {rows}
 <details class='addad'><summary class='btn sm'>{ICON['plus']} Add an ad</summary>
@@ -270,7 +270,7 @@ def register_admin(app, X):
 <form method='post' action='/admin/ads/options'><input type='hidden' name='csrf' value='{tok}'><div class='fgrid'>
 <label class='f wide'>Contact link for the "Advertise with us" button <small>e-mail as mailto:you@example.com, or a page https://...</small>
 <input class='t' name='contact' value='{escape(d['contact'], quote=True)}' maxlength='200'></label>
-<label class='cb'><input type='checkbox' name='placeholders' value='1' {ph_checked}> Show "Your ad could be here" in empty slots</label></div>
+<label class='cb'><input type='checkbox' name='placeholders' value='1' {ph_checked}> Show an "Advertise with us" link in the site footer</label></div>
 <p style='margin-top:14px'><button class='btn sm'>Save</button></p></form></div>
 <div class='panel'><h2>Backup &amp; restore <small>keeps your ads safe</small></h2>
 <p class='hint'>Download a backup after you change ads. If the server ever restarts with a fresh disk, restore it here.</p>

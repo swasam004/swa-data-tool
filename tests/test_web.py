@@ -59,7 +59,8 @@ class Web(unittest.TestCase):
         html = app.test_client().get("/").get_data(as_text=True)
         self.assertNotIn("Youth Programme", html)                 # no fixed dataset title
         self.assertIn("swasamson.site", html)
-        self.assertIn("Your ad could be here", html)             # placeholders until ads.json is filled
+        self.assertNotIn("Your ad could be here", html)          # visitors never see an empty-slot box
+        self.assertIn("Advertise with us", html)                 # one link, in the footer
         self.assertIn("Name this analysis", html)
 
     def test_upload_flow_uses_title_and_escapes_it(self):
@@ -289,7 +290,7 @@ class Web(unittest.TestCase):
         c.post("/admin/ads/options", data={"csrf": tok, "contact": "mailto:ads@example.org", "placeholders": "1"})
         self.assertIn("mailto:ads@example.org", c.get("/").get_data(as_text=True))
         c.post("/admin/ads/options", data={"csrf": tok, "contact": "mailto:ads@example.org"})        # placeholders unchecked
-        self.assertNotIn("Your ad could be here", c.get("/").get_data(as_text=True))
+        self.assertNotIn("Advertise with us", c.get("/").get_data(as_text=True))
         page = c.get("/admin/settings")
         self.assertEqual(page.status_code, 200)
         t2 = page.get_data(as_text=True).split("name='csrf' value='")[1].split("'")[0]
@@ -362,7 +363,7 @@ class Web(unittest.TestCase):
         self.assertNotIn("allow-same-origin", home)
         self.assertNotIn("<script>document.cookie</script>", home)                                   # only inside escaped srcdoc
         self.assertNotIn("Old campaign", home)                                                       # expired campaign hidden
-        self.assertIn("mailto:ads@example.org", home)                                                # placeholder for the expired footer slot
+        self.assertIn("mailto:ads@example.org", home)                                                # the footer "Advertise with us" link
         run = upload(c).headers["Location"]
         result = c.get(run).get_data(as_text=True)
         self.assertNotIn("javascript:alert", result)                                                 # unsafe link rejected
@@ -372,7 +373,7 @@ class Web(unittest.TestCase):
     def test_ads_file_reload_without_restart_and_bad_json(self):
         d, app = self.site(ads={"slots": {}, "placeholders": False})
         c = app.test_client()
-        self.assertNotIn("Your ad could be here", c.get("/").get_data(as_text=True))
+        self.assertNotIn("Advertise with us", c.get("/").get_data(as_text=True))
         time.sleep(0.02)
         (d / "ads.json").write_text(json.dumps({"slots": {"top": {"type": "text", "title": "Hello Ad", "body": "b", "href": "https://x.example.org"}}}))
         os.utime(d / "ads.json", (time.time() + 5, time.time() + 5))
