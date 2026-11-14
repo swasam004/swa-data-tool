@@ -28,10 +28,6 @@ Only you can open it. There is **no link to it on the public site** (it appears 
 ### Important: where ads are saved
 Render's free plan has a **temporary disk**: ads added in the panel disappear when the service restarts or redeploys.
 Choose one:
-* **Free database (recommended)**: create a free Neon (neon.tech) or Supabase project, copy its PostgreSQL connection string
-  (starts with `postgresql://`), and in Render > Environment add `SWA_DATABASE_URL` = that string. Ads and images are then
-  saved in the database after every change and reloaded on every start. The admin checklist shows "Ads storage is permanent".
-  On Supabase use the *Session pooler* connection string. Do not use Render's own free Postgres (it expires after 30 days).
 * **Back up after every change** (Backup & restore) and restore when needed; or commit the downloaded `ads.json` and
   `ads/` images into the repo (they become the starting set on every deploy); or
 * **Attach a Render persistent disk** (paid), mount it at `/var/data`, and set `SWA_DATA_DIR=/var/data`. Ads then
@@ -39,21 +35,25 @@ Choose one:
 The admin checklist tells you which situation you are in.
 
 ## 3. Ads - what visitors see
-Slots: `top` (small 468×60 strip, home page), `home_below` (970×250, under the upload box), `result_below` (728×120, under a report),
+Slots: `top` (728×90, home page), `home_below` (970×250, under the upload box), `result_below` (728×120, under a report),
 `footer` (728×90, every page). A slot with several live ads shows one at random per page view. Empty slots show
-nothing; a single "Advertise with us" link sits in the footer (turn it off in the admin panel). Every ad is labelled "Advertisement" and links
+"Your ad could be here - Advertise with us" (turn off in the admin panel). Every ad is labelled "Advertisement" and links
 use `rel="sponsored nofollow noopener"`.
 Embed/script ads run in a **sandboxed frame**: they cannot read visitors' uploads, reports or cookies. Because of that some
 networks (e.g. AdSense) may refuse to show ads there; direct sponsors, image/text ads and most embeds work.
 You can still edit `ads.json` by hand (see `ads.example.json`), but the panel is easier.
 
-## 4. Run it on your own computer
+## 4. Getting found on Google
+See **SEO_GUIDE.md** (custom domain, Search Console, sitemap, keeping the site awake, links).
+New optional variables: `SWA_SITE_URL` (your public address) and `SWA_GSC_VERIFICATION` (Search Console code).
+
+## 5. Run it on your own computer
 ```
 pip install .
 swa-tool serve --config config.yaml        # http://127.0.0.1:8080  (Settings open freely from the same computer)
 ```
 
-## 5. Limits
+## 6. Limits
 * One analysis runs at a time; a second visitor waits a few seconds.
 * Render's free plan sleeps when idle (first visit is slow) and its disk is temporary – results vanish on redeploy.
 * The free plan has ~512 MB RAM: very large files (tens of MB) may fail. Lower `SWA_MAX_MB` if needed.

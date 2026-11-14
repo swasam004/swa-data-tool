@@ -11,7 +11,8 @@ Environment variables (all optional):
   SWA_PRIVACY_SALT     secret phrase for hashing personal data (overrides privacy_salt in config.yaml - keeps it out of git)
   SWA_RETENTION_HOURS  delete results this many hours after creation (default 48; 0 = keep forever)
   SWA_MAX_MB           upload limit in MB (default 50)
-  SWA_DATABASE_URL     PostgreSQL link (free Neon/Supabase) - ads are saved there too, so they survive restarts on any plan
+  SWA_SITE_URL         public address, e.g. https://tools.swasamson.site (used for canonical links and the sitemap)
+  SWA_GSC_VERIFICATION Google Search Console verification code (the content="..." value of the meta tag)
   SWA_ADS_FILE         path to ads.json (default: ads.json next to config.yaml)
   SWA_ADS_DIR          folder with ad images (default: ads/ next to config.yaml)
   SWA_PROFILES_DIR     folder with extra analysis profiles (*.yaml) shown in a drop-down (default: profiles/)
@@ -36,17 +37,18 @@ from pathlib import Path
 from flask import Flask, Response, abort, g, redirect, request, send_file, send_from_directory
 
 from .ads import IMG_EXT, Ads
-from .ads_db import attach as attach_ads_db
 from .config import ConfigError, load_config
 from .pipeline import process_file
 from .webadmin import register_admin
-from .webui import ICON, SITE_UTM, frame
+from .webui import ICON, SITE, SITE_UTM, frame
 
 ALLOWED = {".csv", ".tsv", ".txt", ".xlsx", ".xlsm", ".xls", ".json"}
 RUN_ID = re.compile(r"^[A-Za-z0-9_\-]{1,200}$")
 SID_RE = re.compile(r"^[a-f0-9]{32}$")
 FILES = {"report.xlsx": "Excel report", "report.html": "HTML report", "clean_data.csv": "Clean data (CSV)",
          "quarantined_rows.csv": "Rejected rows (CSV)", "audit.json": "Audit record", "run.log": "Run log"}
+DESCRIPTION = ("Upload a CSV, Excel or KoboToolbox export. Get verified pivot tables, charts and programme indicators in seconds. "
+               "Every figure is calculated twice.")
 _lock = threading.Lock()          # one analysis at a time (the pipeline logs to one shared logger)
 _purge = {"last": 0.0}
 HERE = Path(__file__).resolve().parent
@@ -95,7 +97,6 @@ def create_app(config_path: str) -> Flask:
         data_dir.mkdir(parents=True, exist_ok=True)
         shutil.copy(cdir / "ads.json", ads_file)
     ads = Ads(ads_file)
-    attach_ads_db(ads, ads_dir)          # no-op unless SWA_DATABASE_URL / DATABASE_URL is set
     profiles_dir = Path(os.environ.get("SWA_PROFILES_DIR") or cdir / "profiles")
 
     # ------------------------------------------------------------------ helpers
@@ -133,10 +134,29 @@ def create_app(config_path: str) -> Flask:
             return True            # already passed the site-wide password
         return local_request()
 
-    def render(title, body, active="", noindex=False, home=False, result=False, status=200):
+    def base_url() -> str:
+        env = os.environ.get("SWA_SITE_URL", "").strip().rstrip("/")
+        if env.startswith(("http://", "https://")):
+            return env
+        proto = request.headers.get("X-Forwarded-Proto", request.scheme).split(",")[0].strip()
+        return f"{proto}://{request.headers.get('X-Forwarded-Host', request.host).split(',')[0].strip()}"
+
+    def jsonld() -> str:
+        data = {"@context": "https://schema.org", "@type": "WebApplication", "name": "SWA Data Analysis", "url": base_url() + "/",
+                "description": DESCRIPTION, "applicationCategory": "BusinessApplication", "operatingSystem": "Any (web browser)",
+                "browserRequirements": "Requires JavaScript", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
+                "creator": {"@type": "Organization", "name": "swasamson.site", "url": SITE},
+                "featureList": ["Pivot tables and charts", "Programme indicators with disaggregation", "Integrity checks (every figure calculated twice)",
+                                "Personal data masking", "KoboToolbox and ODK exports"]}
+        return json.dumps(data).replace("</", "<\\/")
+
+    def render(title, body, active="", noindex=False, home=False, result=False, status=200, index=False, description=""):
         top = ads.render("top") if home else ""
+        public = (home or index) and not noindex and status == 200
         html = frame(title, body, active=active, show_admin=admin_ok(), top_ad=top,
-                     footer_ad=ads.render("footer"), advertise=ads.advertise_html(), retention_hours=retention, noindex=noindex or not home)
+                     footer_ad=ads.render("footer"), retention_hours=retention, noindex=not public, description=description,
+                     canonical=(base_url() + ("/" if home else request.path)) if public else "", jsonld=jsonld() if home and public else "",
+                     gsc=os.environ.get("SWA_GSC_VERIFICATION", ""))
         return Response(html, status=status, mimetype="text/html")
 
     def message(title, text, code=200, button=("/", "Back to start")):
@@ -147,7 +167,7 @@ def create_app(config_path: str) -> Flask:
     # ------------------------------------------------------------------ request hooks
     @app.before_request
     def guard():
-        if request.endpoint in ("healthz", "static_font", "robots"):
+        if request.endpoint in ("healthz", "static_font", "robots", "sitemap"):
             return None
         if site_pw:
             a = request.authorization
@@ -218,7 +238,14 @@ def create_app(config_path: str) -> Flask:
 
     @app.get("/robots.txt", endpoint="robots")
     def robots():
-        return Response("User-agent: *\nDisallow: /runs/\nDisallow: /history\nDisallow: /settings\nDisallow: /admin\nDisallow: /analyse\n", mimetype="text/plain")
+        return Response("User-agent: *\nAllow: /\nDisallow: /runs/\nDisallow: /history\nDisallow: /settings\nDisallow: /admin\nDisallow: /analyse\n"
+                        f"\nSitemap: {base_url()}/sitemap.xml\n", mimetype="text/plain")
+
+    @app.get("/sitemap.xml", endpoint="sitemap")
+    def sitemap():
+        b = base_url()
+        urls = "".join(f"<url><loc>{escape(b + p)}</loc></url>" for p in ("/", "/about", "/privacy"))
+        return Response(f"<?xml version='1.0' encoding='UTF-8'?><urlset xmlns='http://www.sitemaps.org/schemas/sitemap/0.9'>{urls}</urlset>", mimetype="application/xml")
 
     # ------------------------------------------------------------------ home
     @app.get("/")
@@ -289,7 +316,50 @@ def create_app(config_path: str) -> Flask:
 </div></section>
 <section class='promo reveal'><div><h3>More from swasamson.site</h3><p>Tools, projects and resources for data, community programming and digital skills. Come and take a look.</p></div>
 <a class='btn' href='{SITE_UTM}' target='_blank' rel='noopener'>Visit swasamson.site {ICON['ext']}</a></section>"""
-        return render("Verified insights from raw data", body, active="home", home=True)
+        return render("Online data analysis tool for NGOs, researchers and teams", body, active="home", home=True, description=DESCRIPTION)
+
+    # ------------------------------------------------------------------ about & privacy (public, indexable)
+    @app.get("/about")
+    def about():
+        body = f"""<section class='pagehead'><h1>About SWA Data Analysis</h1><p>A data analysis tool built for NGOs, researchers and small teams.</p></section>
+<div class='panel prose'>
+<h2>What it does</h2>
+<p>Upload a CSV, Excel or JSON file (including KoboToolbox and ODK exports). The tool cleans the data, sets aside rows that cannot be trusted,
+and builds pivot tables, charts and programme indicators broken down by sex, age group, location and time. You download an Excel report,
+an HTML report, the cleaned data and the list of rejected rows.</p>
+<h2>Why you can trust the numbers</h2>
+<ul><li>Every pivot table and indicator is calculated twice by independent methods. If they disagree, the report is marked as failed.</li>
+<li>Rows are never silently changed or dropped: problem rows are listed with the reason.</li>
+<li>Rows read always equal rows analysed plus rows set aside plus blank rows.</li>
+<li>Excel results are live formulas, so Excel recalculates them for itself.</li></ul>
+<h2>What it does not do</h2>
+<p>It reports counts, sums, averages and percentages. It does not run significance tests, apply survey weights or correct for sampling.
+Results are only as representative as the data you upload.</p>
+<h2>Who is behind it</h2>
+<p>SWA Data Analysis is built and run by <a href='{SITE_UTM}' target='_blank' rel='noopener'>swasamson.site</a>.</p>
+<p><a class='btn' href='/'>{ICON['upload']} Analyse your data</a></p>
+</div>"""
+        return render("About", body, index=True, description="How SWA Data Analysis works: verified pivot tables, charts and programme indicators from CSV, Excel and KoboToolbox data.")
+
+    @app.get("/privacy")
+    def privacy():
+        keep = (f"Results are deleted automatically {retention} hours after they are created." if retention
+                else "Results stay on the server until the site owner deletes them.")
+        body = f"""<section class='pagehead'><h1>Privacy</h1><p>What happens to your data on this site.</p></section>
+<div class='panel prose'>
+<h2>Your uploaded file</h2><p>The file you upload is analysed and then deleted from the server immediately. It is not kept.</p>
+<h2>Your results</h2><p>The reports created from your file (Excel, HTML, cleaned data, rejected rows and an audit record) are stored on the server so you can download them.
+{escape(keep)} They are only available in the browser that created them: other visitors cannot open them.</p>
+<h2>Personal data in your file</h2><p>If your file contains names, phone numbers or ID numbers, the analysis can hash, mask or remove them in every output,
+depending on how the analysis profile is configured. Do not upload personal data unless you are allowed to share it and understand how the profile treats it.</p>
+<h2>Cookies</h2><p>The site uses one small functional cookie (<code>swa_sid</code>) so your results stay private to your browser. The site owner has a separate sign-in cookie for the admin area.
+There are no tracking or analytics cookies set by this site.</p>
+<h2>Advertising</h2><p>Some pages show advertisements. Image and text ads link to the advertiser's site. Embedded ad code runs in an isolated frame that cannot read your uploads, results or cookies,
+but, as with any website, an advertiser whose content loads in your browser can see your IP address and browser details.</p>
+<h2>Logs</h2><p>Like most hosting services, the host may keep technical logs (such as IP addresses and requested pages) for security and operation.</p>
+<h2>Contact</h2><p>Questions or requests about your data: contact the site owner through <a href='{SITE_UTM}' target='_blank' rel='noopener'>swasamson.site</a>.</p>
+</div>"""
+        return render("Privacy", body, index=True, description="How SWA Data Analysis handles your uploaded files, results, cookies and advertising.")
 
     # ------------------------------------------------------------------ analyse
     @app.post("/analyse")
