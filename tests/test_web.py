@@ -118,29 +118,205 @@ class Web(unittest.TestCase):
         r = c.post("/analyse", data={"csrf": token(c), "file": (io.BytesIO(b"x"), "evil.exe")}, content_type="multipart/form-data")
         self.assertEqual(r.status_code, 400)
 
-    def test_settings_locked_on_public_requests(self):
+    def test_admin_locked_on_public_site_and_no_admin_link_or_banner(self):
         _, app = self.site()
         c = app.test_client()
-        self.assertEqual(c.get("/settings", headers={"X-Forwarded-For": "1.2.3.4"}).status_code, 403)
-        self.assertEqual(c.post("/settings", data={"text": "x"}, headers={"X-Forwarded-For": "1.2.3.4"}).status_code, 403)
-        self.assertNotIn(">Settings<", c.get("/", headers={"X-Forwarded-For": "1.2.3.4"}).get_data(as_text=True))
-        self.assertEqual(c.get("/settings", environ_overrides={"REMOTE_ADDR": "127.0.0.1"}).status_code, 200)
+        pub = {"X-Forwarded-For": "1.2.3.4"}
+        for path in ("/admin", "/admin/settings", "/admin/login", "/admin/ads/backup"):
+            self.assertEqual(c.get(path, headers=pub).status_code, 403, path)
+        for path in ("/admin/ads/add", "/admin/ads/delete", "/admin/ads/restore"):
+            self.assertIn(c.post(path, headers=pub).status_code, (400, 403), path)
+        home = c.get("/", headers=pub).get_data(as_text=True)
+        self.assertNotIn(">Admin<", home)
+        self.assertNotIn("Settings", home)
+        self.assertNotIn("privacy salt", home.lower())               # the old banner must never appear to the public
+        self.assertEqual(c.get("/admin", environ_overrides={"REMOTE_ADDR": "127.0.0.1"}).status_code, 200)
 
-    def test_settings_with_admin_password(self):
-        import base64
+    def login(self, c, pw="s3cret"):
+        tok = c.get("/admin/login").get_data(as_text=True).split("name='csrf' value='")[1].split("'")[0]
+        return c.post("/admin/login", data={"csrf": tok, "password": pw})
+
+    def test_admin_login_flow(self):
         _, app = self.site(env={"SWA_ADMIN_PASSWORD": "s3cret"})
         c = app.test_client()
-        self.assertEqual(c.get("/settings").status_code, 401)
-        good = {"Authorization": "Basic " + base64.b64encode(b"admin:s3cret").decode()}
-        bad = {"Authorization": "Basic " + base64.b64encode(b"admin:nope").decode()}
-        self.assertEqual(c.get("/settings", headers=bad).status_code, 401)
-        r = c.get("/settings", headers=good)
-        self.assertEqual(r.status_code, 200)
-        tok = r.get_data(as_text=True).split("name='csrf' value='")[1].split("'")[0]
-        broken = c.post("/settings", headers=good, data={"csrf": tok, "action": "save", "text": "columns: nope"})
-        self.assertIn("Problem", broken.get_data(as_text=True))                 # invalid config is never saved
-        nocsrf = c.post("/settings", headers=good, data={"action": "save", "text": "x"})
-        self.assertEqual(nocsrf.status_code, 400)
+        self.assertEqual(c.get("/admin").status_code, 302)
+        self.assertIn("/admin/login", c.get("/admin").headers["Location"])
+        home = c.get("/").get_data(as_text=True)
+        self.assertNotIn(">Admin<", home)                                   # public never sees an admin link
+        self.assertNotIn("privacy salt", home.lower())
+        r = self.login(c, "wrong")
+        self.assertIn("/admin/login", r.headers["Location"])
+        self.assertEqual(c.get("/admin").status_code, 302)                  # still not signed in
+        r = self.login(c)
+        self.assertIn("swa_admin=", r.headers.get("Set-Cookie", "") + "".join(r.headers.getlist("Set-Cookie")))
+        page = c.get("/admin").get_data(as_text=True)
+        self.assertIn("Ads manager", page)
+        self.assertIn("Privacy salt", page)                                 # the checklist lives in the admin area only
+        self.assertIn(">Admin<", c.get("/").get_data(as_text=True))         # admin sees the link once signed in
+        c.post("/admin/logout")
+        self.assertEqual(c.get("/admin").status_code, 302)
+
+    def test_admin_login_rate_limit(self):
+        _, app = self.site(env={"SWA_ADMIN_PASSWORD": "s3cret"})
+        c = app.test_client()
+        import swa_data_tool.webadmin as wa
+        orig = time.sleep
+        wa.time.sleep = lambda *_: None
+        self.addCleanup(setattr, wa.time, "sleep", orig)
+        for _ in range(5):
+            self.login(c, "bad")
+        self.login(c, "s3cret")                                              # correct password, but locked out
+        self.assertEqual(c.get("/admin").status_code, 302)
+
+    def admin_client(self, **kw):
+        d, app = self.site(env={"SWA_ADMIN_PASSWORD": "s3cret"}, **kw)
+        c = app.test_client()
+        self.login(c)
+        return d, c
+
+    def csrf(self, c):
+        return c.get("/admin").get_data(as_text=True).split("name='csrf' value='")[1].split("'")[0]
+
+    def test_admin_add_text_ad_shows_on_site_and_can_be_paused_and_deleted(self):
+        d, c = self.admin_client()
+        tok = self.csrf(c)
+        r = c.post("/admin/ads/add", data={"csrf": tok, "slot": "top", "type": "text", "title": "Hello <b>Sponsor</b>",
+                                           "body": "Great offer", "href": "https://sponsor.example.org", "note": "Paid KES 5000"})
+        self.assertEqual(r.status_code, 303)
+        self.assertIn("Hello &lt;b&gt;Sponsor&lt;/b&gt;", c.get("/").get_data(as_text=True))
+        data = json.loads((d / "ads.json").read_text())
+        ad_id = data["slots"]["top"][0]["id"]
+        self.assertNotIn("Paid KES", c.get("/").get_data(as_text=True))                    # private note never public
+        c.post("/admin/ads/toggle", data={"csrf": tok, "slot": "top", "id": ad_id})
+        self.assertNotIn("Hello", c.get("/").get_data(as_text=True))
+        self.assertIn("Paused", c.get("/admin").get_data(as_text=True))
+        c.post("/admin/ads/toggle", data={"csrf": tok, "slot": "top", "id": ad_id})
+        self.assertIn("Hello", c.get("/").get_data(as_text=True))
+        c.post("/admin/ads/delete", data={"csrf": tok, "slot": "top", "id": ad_id})
+        self.assertNotIn("Hello", c.get("/").get_data(as_text=True))
+
+    def test_admin_rejects_bad_ads(self):
+        d, c = self.admin_client()
+        tok = self.csrf(c)
+        bad = [{"type": "text", "title": "x", "href": "javascript:alert(1)"},
+               {"type": "text", "title": "", "href": "https://a.example.org"},
+               {"type": "image", "image_url": "https://a.example.org/readme.txt"},
+               {"type": "html", "html": "  "},
+               {"type": "text", "title": "x", "href": "https://a.example.org", "start": "2026-12-31", "end": "2026-01-01"},
+               {"type": "text", "title": "x", "href": "https://a.example.org", "start": "31/12/2026"}]
+        for form in bad:
+            c.post("/admin/ads/add", data={"csrf": tok, "slot": "top", **form})
+        self.assertEqual(json.loads((d / "ads.json").read_text())["slots"]["top"] if (d / "ads.json").exists() else [], [])
+        c.post("/admin/ads/add", data={"csrf": tok, "slot": "nonsense", "type": "text", "title": "x", "href": "https://a.example.org"})
+
+    def test_admin_requires_csrf_for_every_change(self):
+        d, c = self.admin_client()
+        c.post("/admin/ads/add", data={"slot": "top", "type": "text", "title": "No token", "href": "https://a.example.org"})
+        self.assertNotIn("No token", c.get("/").get_data(as_text=True))
+        c.post("/admin/ads/options", data={"contact": "mailto:x@example.org"})
+        self.assertNotIn("x@example.org", c.get("/").get_data(as_text=True))
+
+    def png_bytes(self, w=728, h=90, fmt="PNG"):
+        from PIL import Image
+        b = io.BytesIO()
+        Image.new("RGB", (w, h), (200, 80, 20)).save(b, format=fmt)
+        return b.getvalue()
+
+    def test_admin_image_upload_is_validated_and_reencoded(self):
+        d, c = self.admin_client()
+        tok = self.csrf(c)
+        evil = self.png_bytes() + b"<?php system($_GET['x']); ?>"
+        c.post("/admin/ads/add", data={"csrf": tok, "slot": "top", "type": "image", "href": "https://a.example.org",
+                                       "image": (io.BytesIO(evil), "banner.png")}, content_type="multipart/form-data")
+        saved = json.loads((d / "ads.json").read_text())["slots"]["top"]
+        self.assertEqual(len(saved), 1)
+        src = saved[0]["src"]
+        self.assertTrue(src.startswith("/ads-media/ad-"))
+        stored = (d / "ads" / src.rsplit("/", 1)[1]).read_bytes()
+        self.assertNotIn(b"<?php", stored)                                   # re-encoded: appended payload is gone
+        self.assertEqual(c.get(src).status_code, 200)
+        self.assertIn(src, c.get("/").get_data(as_text=True))
+        # not an image / wrong format / too big
+        for name, blob in (("x.png", b"not an image"), ("x.gif", self.png_bytes(fmt="GIF")), ("big.png", b"\x89PNG" + b"0" * 700000)):
+            c.post("/admin/ads/add", data={"csrf": tok, "slot": "top", "type": "image", "image": (io.BytesIO(blob), name)}, content_type="multipart/form-data")
+        self.assertEqual(len(json.loads((d / "ads.json").read_text())["slots"]["top"]), 1)
+
+    def test_delete_removes_image_file(self):
+        d, c = self.admin_client()
+        tok = self.csrf(c)
+        c.post("/admin/ads/add", data={"csrf": tok, "slot": "footer", "type": "image", "image": (io.BytesIO(self.png_bytes()), "b.png")}, content_type="multipart/form-data")
+        ad = json.loads((d / "ads.json").read_text())["slots"]["footer"][0]
+        name = ad["src"].rsplit("/", 1)[1]
+        self.assertTrue((d / "ads" / name).exists())
+        c.post("/admin/ads/delete", data={"csrf": tok, "slot": "footer", "id": ad["id"]})
+        self.assertFalse((d / "ads" / name).exists())
+
+    def test_backup_and_restore_round_trip(self):
+        import zipfile
+        d, c = self.admin_client()
+        tok = self.csrf(c)
+        c.post("/admin/ads/add", data={"csrf": tok, "slot": "top", "type": "image", "href": "https://a.example.org",
+                                       "image": (io.BytesIO(self.png_bytes()), "b.png")}, content_type="multipart/form-data")
+        c.post("/admin/ads/add", data={"csrf": tok, "slot": "footer", "type": "text", "title": "Keep me", "href": "https://k.example.org"})
+        bk = c.get("/admin/ads/backup")
+        self.assertEqual(bk.status_code, 200)
+        names = zipfile.ZipFile(io.BytesIO(bk.data)).namelist()
+        self.assertIn("ads.json", names)
+        self.assertTrue(any(n.startswith("ads/ad-") for n in names))
+        for slot in ("top", "footer"):
+            for ad in json.loads((d / "ads.json").read_text())["slots"][slot]:
+                c.post("/admin/ads/delete", data={"csrf": tok, "slot": slot, "id": ad["id"]})
+        self.assertNotIn("Keep me", c.get("/").get_data(as_text=True))
+        c.post("/admin/ads/restore", data={"csrf": tok, "backup": (io.BytesIO(bk.data), "b.zip")}, content_type="multipart/form-data")
+        self.assertIn("Keep me", c.get("/").get_data(as_text=True))
+        # hostile backup: path traversal, javascript: link, fake image
+        evil = io.BytesIO()
+        with zipfile.ZipFile(evil, "w") as z:
+            z.writestr("ads.json", json.dumps({"slots": {"top": [{"type": "text", "title": "t", "href": "javascript:alert(1)"},
+                                                                 {"type": "image", "src": "/ads-media/ghost.png"}]}}))
+            z.writestr("ads/../../evil.png", b"x")
+            z.writestr("ads/fake.png", b"not an image")
+        c.post("/admin/ads/restore", data={"csrf": tok, "backup": (io.BytesIO(evil.getvalue()), "e.zip")}, content_type="multipart/form-data")
+        self.assertEqual(json.loads((d / "ads.json").read_text())["slots"]["top"], [])
+        self.assertFalse((d.parent / "evil.png").exists())
+        self.assertFalse((d / "ads" / "fake.png").exists())
+
+    def test_admin_options_and_settings_editor(self):
+        d, c = self.admin_client()
+        tok = self.csrf(c)
+        c.post("/admin/ads/options", data={"csrf": tok, "contact": "javascript:alert(1)", "placeholders": "1"})
+        self.assertNotIn("javascript:alert", c.get("/").get_data(as_text=True))
+        c.post("/admin/ads/options", data={"csrf": tok, "contact": "mailto:ads@example.org", "placeholders": "1"})
+        self.assertIn("mailto:ads@example.org", c.get("/").get_data(as_text=True))
+        c.post("/admin/ads/options", data={"csrf": tok, "contact": "mailto:ads@example.org"})        # placeholders unchecked
+        self.assertNotIn("Your ad could be here", c.get("/").get_data(as_text=True))
+        page = c.get("/admin/settings")
+        self.assertEqual(page.status_code, 200)
+        t2 = page.get_data(as_text=True).split("name='csrf' value='")[1].split("'")[0]
+        broken = c.post("/admin/settings", data={"csrf": t2, "action": "save", "text": "columns: nope"})
+        self.assertIn("Problem", broken.get_data(as_text=True))
+        self.assertEqual(c.post("/admin/settings", data={"action": "save", "text": "x"}).status_code, 303)   # no CSRF -> refused
+        self.assertEqual(c.get("/settings").status_code, 302)
+
+    def test_storage_warning_on_render_and_data_dir(self):
+        d, c = self.admin_client()
+        os.environ["RENDER"] = "true"
+        self.addCleanup(os.environ.pop, "RENDER", None)
+        self.assertIn("Ads storage is temporary", c.get("/admin").get_data(as_text=True))
+
+    def test_data_dir_seeds_and_stores_ads_there(self):
+        data = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, data, True)
+        d, app = make_site(ads={"slots": {"top": {"type": "text", "title": "Seeded", "href": "https://s.example.org"}}},
+                           env={"SWA_DATA_DIR": str(data), "SWA_ADMIN_PASSWORD": "s3cret"})
+        self.addCleanup(shutil.rmtree, d, True)
+        self.addCleanup(os.environ.pop, "SWA_DATA_DIR", None)
+        c = app.test_client(); self.login(c)
+        self.assertIn("Seeded", c.get("/").get_data(as_text=True))
+        tok = self.csrf(c)
+        c.post("/admin/ads/add", data={"csrf": tok, "slot": "footer", "type": "text", "title": "Persisted", "href": "https://p.example.org"})
+        self.assertIn("Persisted", (data / "ads.json").read_text())
+        self.assertNotIn("Persisted", (d / "ads.json").read_text())
+        self.assertIn("Ads storage is permanent", c.get("/admin").get_data(as_text=True))
 
     def test_site_password(self):
         import base64

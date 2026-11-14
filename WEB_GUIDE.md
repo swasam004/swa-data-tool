@@ -1,57 +1,47 @@
 # SWA Data Analysis - website guide
 
 ## 1. Update your live site (swa-data-tool.onrender.com)
-1. In your project/repo, replace these with the versions in this zip: `swa_data_tool/` (whole folder), `pyproject.toml`,
-   `requirements.txt`, `render.yaml`. Add the new `ads.json`, `ads/` and `profiles/`.
-   **Keep your own `config.yaml`** (or use the one included).
-2. Commit and push. Render rebuilds automatically.
+1. Replace `swa_data_tool/` (whole folder), `pyproject.toml`, `requirements.txt` and `render.yaml` with the versions in this
+   zip, and add `WEB_GUIDE.md`, `ads.json`, `ads/` and `profiles/` if you don't have them. Keep your own `config.yaml`.
+2. `git add -A && git commit -m "Admin panel" && git push` - Render rebuilds automatically.
 3. In Render → your service → **Environment**, add:
    | Variable | Value |
    |---|---|
-   | `SWA_PRIVACY_SALT` | a long secret phrase you invent (used to hash personal data; keeps it out of git) |
-   | `SWA_ADMIN_PASSWORD` | a strong password – the only way to open **/settings** on the public site |
-   | `SWA_SECRET` | any long random text (Render generates it if you use `render.yaml`) |
-   | `SWA_RETENTION_HOURS` | `48` (results auto-delete after this time) |
-4. Open `https://swa-data-tool.onrender.com/settings` – the browser asks for a password; user name can be anything,
-   password = `SWA_ADMIN_PASSWORD`.
+   | `SWA_ADMIN_PASSWORD` | a strong password - **required to use the admin panel** |
+   | `SWA_PRIVACY_SALT` | a long secret phrase (hashing of personal data; keeps it out of git) |
+   | `SWA_SECRET` | any long random text (keeps admin/forms valid across restarts) |
+   | `SWA_RETENTION_HOURS` | `48` |
+4. Open `https://swa-data-tool.onrender.com/admin`, sign in with the admin password.
 
-## 2. What changed (and why)
-* **New design**: data-analysis colours, Canva-style hero with a standalone drop card, self-hosted *Figtree* font.
-* **No fixed title**: the page no longer shows "Youth Programme - Beneficiary Register". Each upload has an optional
-  **Name this analysis** box; if left empty the file name is used. That name appears in the page and in the Excel/HTML report.
-* **swasamson.site** is advertised in the header button, footer, a promo section and a small line in every report
-  (turn the report line off with `branding: false` in config.yaml).
-* **Advertising slots** (section 3).
-* **Visitor privacy (important for a public site)**: before, everybody saw everybody's past runs, and anyone could edit
-  Settings. Now each browser only sees its own results (404 for anything else), Settings need the admin password,
-  results are deleted after `SWA_RETENTION_HOURS`, and the uploaded file is deleted right after analysis.
-* **Type of data** drop-down appears automatically when you put extra `.yaml` files in `profiles/` (the sales example is included).
+## 2. The admin panel (`/admin`)
+Only you can open it. There is **no link to it on the public site** (it appears in the menu only after you sign in).
+* **Setup checklist** - privacy salt, admin password, storage, retention, advertiser contact. Warnings about setup live
+  here, never on the public pages.
+* **Ads manager** - four slots. For each: *Add an ad* (image upload, text ad, or embed code), choose start/end dates,
+  *Pause/Resume*, *Delete*. Changes are live immediately. A private note (advertiser, price) is saved but never shown.
+  Uploaded images are verified and re-encoded for safety (PNG/JPG/WEBP, up to 600 KB).
+* **Advertiser contact** - the e-mail or link behind "Advertise with us", and whether empty slots show that box.
+* **Backup & restore** - download all ads (with images) as one .zip, restore it later.
+* **Analysis settings** - edit config.yaml (the columns and pivots the site expects) with a Check button.
+* Sign-in is locked for 10 minutes after 5 wrong passwords. Sessions last 8 hours.
 
-## 3. Selling / placing ads
-Edit `ads.json` (no restart needed). Four slots:
+### Important: where ads are saved
+Render's free plan has a **temporary disk**: ads added in the panel disappear when the service restarts or redeploys.
+Choose one:
+* **Back up after every change** (Backup & restore) and restore when needed; or commit the downloaded `ads.json` and
+  `ads/` images into the repo (they become the starting set on every deploy); or
+* **Attach a Render persistent disk** (paid), mount it at `/var/data`, and set `SWA_DATA_DIR=/var/data`. Ads then
+  survive everything. On first start the repo's `ads.json` is copied there as the starting set.
+The admin checklist tells you which situation you are in.
 
-| Slot | Where | Size |
-|---|---|---|
-| `top` | under the header, home page | 728 × 90 |
-| `home_below` | under the upload box | 970 × 250 |
-| `result_below` | under a finished report | 728 × 120 |
-| `footer` | bottom of every page | 728 × 90 |
-
-Each slot holds **one ad or a list** (one is picked at random per page view). Ad types:
-* `image` – banner (`/ads-media/file.png` from the `ads/` folder, or an https image URL) + link.
-* `text` – title, body, link, button text.
-* `html` – script/embed code from an ad network. It runs in a **sandboxed frame**: it cannot read your visitors' uploads,
-  reports or cookies. Because of that, some networks (e.g. Google AdSense) may refuse to show ads there; direct sponsors,
-  affiliate banners and most embeds work. If you want AdSense, put it on swasamson.site rather than on the page that
-  handles beneficiary data.
-* Add `"start"` / `"end"` dates (YYYY-MM-DD) to run a paid campaign automatically. Expired ads disappear.
-* Empty slots show a dashed **"Your ad could be here – Advertise with us"** box linking to `contact`
-  (set `"contact": "mailto:you@example.com"`). Set `"placeholders": false` to hide empty slots.
-* Every ad is labelled "Advertisement", and links use `rel="sponsored nofollow noopener"`.
-See `ads.example.json` for a complete example.
-
-Good practice: tell advertisers that visitors are NGOs/researchers; do not accept ads that track or collect data from
-people who are uploading sensitive files.
+## 3. Ads - what visitors see
+Slots: `top` (728×90, home page), `home_below` (970×250, under the upload box), `result_below` (728×120, under a report),
+`footer` (728×90, every page). A slot with several live ads shows one at random per page view. Empty slots show
+"Your ad could be here - Advertise with us" (turn off in the admin panel). Every ad is labelled "Advertisement" and links
+use `rel="sponsored nofollow noopener"`.
+Embed/script ads run in a **sandboxed frame**: they cannot read visitors' uploads, reports or cookies. Because of that some
+networks (e.g. AdSense) may refuse to show ads there; direct sponsors, image/text ads and most embeds work.
+You can still edit `ads.json` by hand (see `ads.example.json`), but the panel is easier.
 
 ## 4. Run it on your own computer
 ```

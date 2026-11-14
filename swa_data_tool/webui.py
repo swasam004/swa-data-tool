@@ -196,7 +196,7 @@ def frame(title: str, body: str, *, active: str = "", show_admin: bool = False, 
     desc = description or "Turn raw data into verified insights: pivot tables, charts, indicators and integrity checks from CSV, Excel or JSON files."
     nav_items = [("/", "Analyse", "home"), ("/#how", "How it works", "how"), ("/history", "Past runs", "history")]
     if show_admin:
-        nav_items.append(("/settings", "Settings", "settings"))
+        nav_items.append(("/admin", "Admin", "admin"))
     nav = "".join(f"<a href='{h}'{' class=on' if active == k else ''}>{t}</a>" for h, t, k in nav_items)
     keep = f"Results are deleted automatically after {retention_hours} hours." if retention_hours else "Results stay on this server until the owner deletes them."
     robots = "<meta name='robots' content='noindex,nofollow'>" if noindex else ""

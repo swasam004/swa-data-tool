@@ -15,5 +15,7 @@ services:
         sync: false
       - key: SWA_ADMIN_PASSWORD    # YOU set this: unlocks the /settings page for you only
         sync: false
+      # - key: SWA_DATA_DIR       # uncomment after attaching a persistent disk mounted at /var/data
+      #   value: /var/data
       - key: SWA_RETENTION_HOURS   # results are deleted after this many hours
         value: "48"

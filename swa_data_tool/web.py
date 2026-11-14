@@ -4,7 +4,9 @@
 
 Environment variables (all optional):
   SWA_PASSWORD         require this password for the WHOLE site (HTTP basic auth, any user name)
-  SWA_ADMIN_PASSWORD   password for /settings. Without it, settings are only editable from the same computer.
+  SWA_ADMIN_PASSWORD   password for the admin area (/admin: ads manager + settings). Without it the admin area is only
+                       available from the same computer.
+  SWA_DATA_DIR         folder for ads.json and ad images (point it at a persistent disk so ads survive restarts)
   SWA_SECRET           long random text used to sign forms (keeps forms valid across restarts)
   SWA_PRIVACY_SALT     secret phrase for hashing personal data (overrides privacy_salt in config.yaml - keeps it out of git)
   SWA_RETENTION_HOURS  delete results this many hours after creation (default 48; 0 = keep forever)
@@ -35,6 +37,7 @@ from flask import Flask, Response, abort, g, redirect, request, send_file, send_
 from .ads import IMG_EXT, Ads
 from .config import ConfigError, load_config
 from .pipeline import process_file
+from .webadmin import register_admin
 from .webui import ICON, SITE_UTM, frame
 
 ALLOWED = {".csv", ".tsv", ".txt", ".xlsx", ".xlsm", ".xls", ".json"}
@@ -42,7 +45,6 @@ RUN_ID = re.compile(r"^[A-Za-z0-9_\-]{1,200}$")
 SID_RE = re.compile(r"^[a-f0-9]{32}$")
 FILES = {"report.xlsx": "Excel report", "report.html": "HTML report", "clean_data.csv": "Clean data (CSV)",
          "quarantined_rows.csv": "Rejected rows (CSV)", "audit.json": "Audit record", "run.log": "Run log"}
-PLACEHOLDER_SALT = "replace-this-with-a-long-secret-phrase"
 _lock = threading.Lock()          # one analysis at a time (the pipeline logs to one shared logger)
 _purge = {"last": 0.0}
 HERE = Path(__file__).resolve().parent
@@ -83,8 +85,14 @@ def create_app(config_path: str) -> Flask:
     admin_pw = os.environ.get("SWA_ADMIN_PASSWORD", "")
     secret = (os.environ.get("SWA_SECRET") or secrets.token_hex(32)).encode()
     retention = int(os.environ.get("SWA_RETENTION_HOURS", "48") or 0)
-    ads = Ads(Path(os.environ.get("SWA_ADS_FILE") or cdir / "ads.json"))
-    ads_dir = Path(os.environ.get("SWA_ADS_DIR") or cdir / "ads")
+    data_dir = Path(os.environ.get("SWA_DATA_DIR") or cdir)
+    persistent = bool(os.environ.get("SWA_DATA_DIR"))
+    ads_file = Path(os.environ.get("SWA_ADS_FILE") or data_dir / "ads.json")
+    ads_dir = Path(os.environ.get("SWA_ADS_DIR") or data_dir / "ads")
+    if data_dir != cdir and not ads_file.exists() and (cdir / "ads.json").is_file():   # first run on a fresh data disk
+        data_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy(cdir / "ads.json", ads_file)
+    ads = Ads(ads_file)
     profiles_dir = Path(os.environ.get("SWA_PROFILES_DIR") or cdir / "profiles")
 
     # ------------------------------------------------------------------ helpers
@@ -117,18 +125,14 @@ def create_app(config_path: str) -> Flask:
 
     def admin_ok() -> bool:
         if admin_pw:
-            a = request.authorization
-            return bool(a and secrets.compare_digest(a.password or "", admin_pw))
+            return bool(X["cookie_valid"]())
         if site_pw:
             return True            # already passed the site-wide password
         return local_request()
 
-    def admin_visible() -> bool:
-        return bool(admin_pw) or local_request() or bool(site_pw)
-
     def render(title, body, active="", noindex=False, home=False, result=False, status=200):
         top = ads.render("top") if home else ""
-        html = frame(title, body, active=active, show_admin=admin_visible(), top_ad=top,
+        html = frame(title, body, active=active, show_admin=admin_ok(), top_ad=top,
                      footer_ad=ads.render("footer"), retention_hours=retention, noindex=noindex or not home)
         return Response(html, status=status, mimetype="text/html")
 
@@ -145,7 +149,7 @@ def create_app(config_path: str) -> Flask:
         if site_pw:
             a = request.authorization
             pw = (a.password or "") if a else ""
-            if not (secrets.compare_digest(pw, site_pw) or (admin_pw and secrets.compare_digest(pw, admin_pw))):
+            if not secrets.compare_digest(pw, site_pw):
                 return Response("Password required.", 401, {"WWW-Authenticate": 'Basic realm="SWA"'})
         sid = request.cookies.get("swa_sid", "")
         g.new_sid = None
@@ -211,7 +215,7 @@ def create_app(config_path: str) -> Flask:
 
     @app.get("/robots.txt", endpoint="robots")
     def robots():
-        return Response("User-agent: *\nDisallow: /runs/\nDisallow: /history\nDisallow: /settings\nDisallow: /analyse\n", mimetype="text/plain")
+        return Response("User-agent: *\nDisallow: /runs/\nDisallow: /history\nDisallow: /settings\nDisallow: /admin\nDisallow: /analyse\n", mimetype="text/plain")
 
     # ------------------------------------------------------------------ home
     @app.get("/")
@@ -220,14 +224,10 @@ def create_app(config_path: str) -> Flask:
             c = cfg()
         except ConfigError as exc:
             if admin_ok():
-                return message("The saved settings have a problem", str(exc), 500, ("/settings", "Fix settings"))
+                return message("The saved settings have a problem", str(exc), 500, ("/admin/settings", "Fix settings"))
             return message("This site is being updated", "Please try again in a few minutes.", 503)
         profs = profiles()
         maxmb = app.config["MAX_CONTENT_LENGTH"] // 1048576
-        banner = ""
-        if admin_ok() and c["privacy_salt"] in ("", PLACEHOLDER_SALT):
-            banner = ("<div class='banner'>The privacy salt is still the placeholder. Open <a href='/settings'>Settings</a> "
-                      "and set a long secret phrase before using real data.</div>")
         select, col_notes = "", ""
         if len(profs) > 1:
             select = ("<select class='prof' name='profile' id='prof' aria-label='Type of data'>"
@@ -238,8 +238,7 @@ def create_app(config_path: str) -> Flask:
             except ConfigError:
                 continue
             col_notes += f"<p data-prof='{escape(k)}'{' hidden' if i else ''}><b>{escape(label)}:</b> {names}</p>"
-        body = f"""{banner}
-<section class='hero'>
+        body = f"""<section class='hero'>
 <span class='eyebrow'><i></i> Verified data analysis for NGOs, researchers &amp; teams</span>
 <h1 class='big'>Turn raw data into <span class='grad'>verified insights</span></h1>
 <p class='lead'>Upload a CSV, Excel or JSON file. Get pivot tables, charts, programme indicators and a full integrity check &mdash; in seconds.</p>
@@ -410,45 +409,10 @@ def create_app(config_path: str) -> Flask:
                 f"<div class='panel'><table class='runs'>{rows or '<tr><td style=color:var(--mut)>Nothing yet - upload a file to get started.</td></tr>'}</table></div>")
         return render("Past runs", body, active="history", noindex=True)
 
-    # ------------------------------------------------------------------ settings (owner only)
-    @app.route("/settings", methods=["GET", "POST"])
-    def settings():
-        if not admin_ok():
-            if admin_pw:
-                return Response("Admin password required.", 401, {"WWW-Authenticate": 'Basic realm="SWA admin"'})
-            return message("Settings are locked", "On a public website the settings can only be changed by the owner. "
-                           "Set the SWA_ADMIN_PASSWORD environment variable on the server, then open this page again.", 403)
-        note = ""
-        text = Path(config_path).read_text(encoding="utf-8-sig")
-        if request.method == "POST":
-            if not csrf_ok():
-                return message("Please try again", "Your session expired. Reload the settings page.", 400, ("/settings", "Reload"))
-            text = request.form.get("text", "")
-            fd, tmp = tempfile.mkstemp(suffix=".yaml", dir=str(Path(config_path).parent))
-            try:
-                with os.fdopen(fd, "w", encoding="utf-8") as fh:
-                    fh.write(text)
-                c = load_config(tmp)                       # validates exactly like `swa-tool check-config`
-                if request.form.get("action") == "save":
-                    Path(config_path + ".bak").write_text(Path(config_path).read_text(encoding="utf-8-sig"), encoding="utf-8")
-                    os.replace(tmp, config_path)
-                    os.chmod(config_path, 0o600)
-                    note = "<p class='ok'><b>Saved.</b> New settings apply to the next analysis (previous version kept as config.yaml.bak).</p>"
-                else:
-                    note = f"<p class='ok'><b>Settings are valid:</b> {len(c['columns'])} column(s), {len(c['pivots'])} pivot(s).</p>"
-            except ConfigError as exc:
-                note = f"<p class='bad'><b>Problem:</b> {escape(str(exc))}</p>"
-            finally:
-                if os.path.exists(tmp):
-                    os.remove(tmp)
-        ad_note = ""
-        if ads.problems:
-            ad_note = "<div class='msgbad'><b>ads.json problem:</b> " + escape("; ".join(ads.problems)) + "</div>"
-        body = f"""<section class='pagehead'><h1>Settings</h1><p>This is your config.yaml. Each <code>source:</code> must match a column header in your data file exactly.</p></section>
-<div class='panel'>{note}{ad_note}<form method='post'><input type='hidden' name='csrf' value='{token()}'>
-<textarea class='code' name='text' spellcheck='false'>{escape(text)}</textarea>
-<p class='dl'><button class='btn sm ghost' name='action' value='check'>Check</button><button class='btn sm' name='action' value='save'>Save</button></p></form></div>"""
-        return render("Settings", body, active="settings", noindex=True)
+    X = {"render": render, "message": message, "token": token, "csrf_ok": csrf_ok, "admin_ok": admin_ok, "ads": ads,
+         "ads_dir": ads_dir, "admin_pw": admin_pw, "secret": secret, "cfg": cfg, "profiles": profiles, "retention": retention,
+         "config_path": config_path, "persistent": persistent}
+    register_admin(app, X)
 
     return app
 
