@@ -13,7 +13,7 @@ from pathlib import Path
 
 from flask import Response, g, redirect, request
 
-from .ads import SLOT_INFO, SLOTS, Ads, build_backup, process_image_upload, restore_backup, safe_url
+from .ads import MAX_UPLOAD_BYTES, SLOT_INFO, SLOTS, Ads, build_backup, process_image_upload, restore_backup, safe_url
 from .config import ConfigError, load_config
 from .webui import ICON
 
@@ -179,11 +179,15 @@ def register_admin(app, X):
         else:
             add("warn", "Privacy salt is not set", "Your profiles hash personal data. In Render &rarr; Environment add <code>SWA_PRIVACY_SALT</code> with a long secret phrase.")
         add("ok" if admin_pw else "warn", "Admin password", "Set." if admin_pw else "Not set. Add SWA_ADMIN_PASSWORD in Render &rarr; Environment.")
-        if X["persistent"]:
+        if ads.db and ads.sync_error:
+            add("warn", "Ads database problem", escape(ads.sync_error) + " Check the <code>SWA_DATABASE_URL</code> value in Render &rarr; Environment.")
+        elif ads.db:
+            add("ok", "Ads storage is permanent", "Ads and their images are saved in your database and survive restarts and redeploys.")
+        elif X["persistent"]:
             add("ok", "Ads storage is permanent", f"Saved in <code>{escape(str(ads.path))}</code>.")
         elif os.environ.get("RENDER"):
             add("warn", "Ads storage is temporary", "On Render's free plan, ads you add here are lost when the service restarts or redeploys. "
-                "Download a backup after each change (Backup section) and restore it if needed, or attach a Render disk and set <code>SWA_DATA_DIR</code>.")
+                "Download a backup after each change (Backup section) and restore it if needed, or connect a free database by setting <code>SWA_DATABASE_URL</code> (see WEB_GUIDE).")
         else:
             add("info", "Ads storage", f"Saved in <code>{escape(str(ads.path))}</code>.")
         add("info", "Results retention", (f"Visitor results are deleted after {X['retention']} hours." if X["retention"] else "Results are kept until you delete them."))
@@ -219,16 +223,17 @@ def register_admin(app, X):
 <form method='post' action='/admin/ads/toggle'><input type='hidden' name='csrf' value='{tok}'><input type='hidden' name='slot' value='{slot}'><input type='hidden' name='id' value='{escape(str(ad.get('id', '')), quote=True)}'><button class='btn sm ghost'>{'Resume' if ad.get('enabled') is False else 'Pause'}</button></form>
 <form method='post' action='/admin/ads/delete' onsubmit="return confirm('Delete this ad permanently?')"><input type='hidden' name='csrf' value='{tok}'><input type='hidden' name='slot' value='{slot}'><input type='hidden' name='id' value='{escape(str(ad.get('id', '')), quote=True)}'><button class='btn sm danger'>Delete</button></form></div></div>"""
         if not rows:
-            rows = "<p class='hint'>No ads yet - visitors see the \"Your ad could be here\" box.</p>"
+            rows = "<p class='hint'>No ads yet - nothing is shown to visitors in this slot.</p>"
         return f"""<div class='panel' id='slot-{slot}'><h2>{escape(title)} <small>{w}&times;{h} &middot; {escape(where)} &middot; {ads.live_count(slot)} live</small></h2>
 {rows}
+{("<form method='post' action='/admin/ads/clear' onsubmit=\"return confirm('Delete ALL ads in this slot permanently?')\" style='margin-top:10px'><input type='hidden' name='csrf' value='" + tok + "'><input type='hidden' name='slot' value='" + slot + "'><button class='btn sm danger'>Delete all ads in this slot</button></form>") if len(lst) > 1 else ''}
 <details class='addad'><summary class='btn sm'>{ICON['plus']} Add an ad</summary>
 <form class='addform' method='post' action='/admin/ads/add' enctype='multipart/form-data'>
 <input type='hidden' name='csrf' value='{tok}'><input type='hidden' name='slot' value='{slot}'>
 <div class='fgrid'>
 <label class='f wide'>Ad type<select class='t adtype' name='type'><option value='image'>Image banner</option><option value='text'>Text ad</option><option value='html'>Embed / script code</option></select></label>
 <div class='g-image wide fgrid'>
-<label class='f'>Upload banner <small>PNG, JPG or WEBP, up to 600 KB &middot; best size {w}&times;{h}</small><input class='t' type='file' name='image' accept='image/png,image/jpeg,image/webp'></label>
+<label class='f'>Upload banner <small>PNG, JPG or WEBP, any size up to 15 MB - compressed automatically &middot; best size {w}&times;{h}</small><input class='t' type='file' name='image' accept='image/png,image/jpeg,image/webp'></label>
 <label class='f'>...or image link <small>https://... ending in .png/.jpg/.webp</small><input class='t' type='url' name='image_url' placeholder='https://'></label>
 <label class='f'>Alt text <small>describes the banner</small><input class='t' name='alt' maxlength='120'></label></div>
 <div class='g-text wide fgrid'>
@@ -270,7 +275,7 @@ def register_admin(app, X):
 <form method='post' action='/admin/ads/options'><input type='hidden' name='csrf' value='{tok}'><div class='fgrid'>
 <label class='f wide'>Contact link for the "Advertise with us" button <small>e-mail as mailto:you@example.com, or a page https://...</small>
 <input class='t' name='contact' value='{escape(d['contact'], quote=True)}' maxlength='200'></label>
-<label class='cb'><input type='checkbox' name='placeholders' value='1' {ph_checked}> Show "Your ad could be here" in empty slots</label></div>
+<label class='cb'><input type='checkbox' name='placeholders' value='1' {ph_checked}> Show an "Advertise with us" link in the site footer</label></div>
 <p style='margin-top:14px'><button class='btn sm'>Save</button></p></form></div>
 <div class='panel'><h2>Backup &amp; restore <small>keeps your ads safe</small></h2>
 <p class='hint'>Download a backup after you change ads. If the server ever restarts with a fresh disk, restore it here.</p>
@@ -329,7 +334,7 @@ def register_admin(app, X):
         if t == "image":
             up = request.files.get("image")
             if up and up.filename:
-                url, msg, size = process_image_upload(up.read(700 * 1024 + 1), ads_dir)
+                url, msg, size = process_image_upload(up.read(MAX_UPLOAD_BYTES + 1), ads_dir)
                 if not url:
                     flash(msg, "bad")
                     return go(f"/admin#slot-{slot}")
@@ -372,6 +377,21 @@ def register_admin(app, X):
             _unused_images_cleanup(d)
             flash("Ad deleted.")
         return go(f"/admin#slot-{request.form.get('slot', '')}")
+
+    @app.post("/admin/ads/clear")
+    def ad_clear():
+        r = _guard()
+        if r:
+            return r
+        d = ads.ensure_ids()
+        slot = request.form.get("slot", "")
+        if slot in d["slots"]:
+            n = len(d["slots"][slot])
+            d["slots"][slot] = []
+            ads.save(d)
+            _unused_images_cleanup(d)
+            flash(f"Deleted {n} ad(s).")
+        return go(f"/admin#slot-{slot}")
 
     @app.post("/admin/ads/toggle")
     def ad_toggle():

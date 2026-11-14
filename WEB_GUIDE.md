@@ -28,6 +28,10 @@ Only you can open it. There is **no link to it on the public site** (it appears 
 ### Important: where ads are saved
 Render's free plan has a **temporary disk**: ads added in the panel disappear when the service restarts or redeploys.
 Choose one:
+* **Free database (recommended)**: create a free Neon (neon.tech) or Supabase project, copy its PostgreSQL connection string
+  (starts with `postgresql://`), and in Render > Environment add `SWA_DATABASE_URL` = that string. Ads and images are then
+  saved in the database after every change and reloaded on every start. The admin checklist shows "Ads storage is permanent".
+  On Supabase use the *Session pooler* connection string. Do not use Render's own free Postgres (it expires after 30 days).
 * **Back up after every change** (Backup & restore) and restore when needed; or commit the downloaded `ads.json` and
   `ads/` images into the repo (they become the starting set on every deploy); or
 * **Attach a Render persistent disk** (paid), mount it at `/var/data`, and set `SWA_DATA_DIR=/var/data`. Ads then
@@ -35,9 +39,9 @@ Choose one:
 The admin checklist tells you which situation you are in.
 
 ## 3. Ads - what visitors see
-Slots: `top` (728×90, home page), `home_below` (970×250, under the upload box), `result_below` (728×120, under a report),
+Slots: `top` (small 468×60 strip, home page), `home_below` (970×250, under the upload box), `result_below` (728×120, under a report),
 `footer` (728×90, every page). A slot with several live ads shows one at random per page view. Empty slots show
-"Your ad could be here - Advertise with us" (turn off in the admin panel). Every ad is labelled "Advertisement" and links
+nothing; a single "Advertise with us" link sits in the footer (turn it off in the admin panel). Every ad is labelled "Advertisement" and links
 use `rel="sponsored nofollow noopener"`.
 Embed/script ads run in a **sandboxed frame**: they cannot read visitors' uploads, reports or cookies. Because of that some
 networks (e.g. AdSense) may refuse to show ads there; direct sponsors, image/text ads and most embeds work.

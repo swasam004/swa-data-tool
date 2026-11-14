@@ -17,5 +17,11 @@ services:
         sync: false
       # - key: SWA_DATA_DIR       # uncomment after attaching a persistent disk mounted at /var/data
       #   value: /var/data
+      - key: SWA_DATABASE_URL      # YOU set this: free Neon/Supabase connection string - makes ads permanent
+        sync: false
+      - key: SWA_SITE_URL          # optional: your public address, e.g. https://tools.swasamson.site (canonical links + sitemap)
+        sync: false
+      - key: SWA_GSC_VERIFICATION  # optional: Google Search Console code (see SEO_GUIDE.md)
+        sync: false
       - key: SWA_RETENTION_HOURS   # results are deleted after this many hours
         value: "48"

@@ -59,7 +59,8 @@ class Web(unittest.TestCase):
         html = app.test_client().get("/").get_data(as_text=True)
         self.assertNotIn("Youth Programme", html)                 # no fixed dataset title
         self.assertIn("swasamson.site", html)
-        self.assertIn("Your ad could be here", html)             # placeholders until ads.json is filled
+        self.assertNotIn("Your ad could be here", html)          # visitors never see an empty-slot box
+        self.assertIn("Advertise with us", html)                 # one link, in the footer
         self.assertIn("Name this analysis", html)
 
     def test_upload_flow_uses_title_and_escapes_it(self):
@@ -241,6 +242,25 @@ class Web(unittest.TestCase):
             c.post("/admin/ads/add", data={"csrf": tok, "slot": "top", "type": "image", "image": (io.BytesIO(blob), name)}, content_type="multipart/form-data")
         self.assertEqual(len(json.loads((d / "ads.json").read_text())["slots"]["top"]), 1)
 
+    def test_large_image_is_compressed_and_clear_slot(self):
+        import os
+        from PIL import Image
+        d, c = self.admin_client()
+        tok = self.csrf(c)
+        im = Image.frombytes("RGB", (3000, 1200), os.urandom(3000 * 1200 * 3))          # ~10 MB of noise
+        b = io.BytesIO(); im.save(b, format="PNG")
+        self.assertGreater(len(b.getvalue()), 3 * 1024 * 1024)
+        c.post("/admin/ads/add", data={"csrf": tok, "slot": "home_below", "type": "image", "image": (io.BytesIO(b.getvalue()), "huge.png")}, content_type="multipart/form-data")
+        c.post("/admin/ads/add", data={"csrf": tok, "slot": "home_below", "type": "text", "title": "Two", "href": "https://t.example.org"})
+        saved = json.loads((d / "ads.json").read_text())["slots"]["home_below"]
+        self.assertEqual(len(saved), 2)
+        f = d / "ads" / saved[0]["src"].rsplit("/", 1)[1]
+        self.assertLess(f.stat().st_size, 250 * 1024)
+        self.assertLessEqual(max(Image.open(f).size), 1940)
+        c.post("/admin/ads/clear", data={"csrf": tok, "slot": "home_below"})
+        self.assertEqual(json.loads((d / "ads.json").read_text())["slots"]["home_below"], [])
+        self.assertFalse(f.exists())
+
     def test_delete_removes_image_file(self):
         d, c = self.admin_client()
         tok = self.csrf(c)
@@ -281,6 +301,18 @@ class Web(unittest.TestCase):
         self.assertFalse((d.parent / "evil.png").exists())
         self.assertFalse((d / "ads" / "fake.png").exists())
 
+    def test_admin_can_delete_one_or_all_ads_any_time(self):
+        d, c = self.admin_client()
+        tok = self.csrf(c)
+        for n in ("A", "B", "C"):
+            c.post("/admin/ads/add", data={"csrf": tok, "slot": "footer", "type": "text", "title": "Ad " + n, "href": "https://x.example.org"})
+        ads = json.loads((d / "ads.json").read_text())["slots"]["footer"]
+        self.assertEqual(len(ads), 3)
+        c.post("/admin/ads/delete", data={"csrf": tok, "slot": "footer", "id": ads[0]["id"]})
+        self.assertEqual(len(json.loads((d / "ads.json").read_text())["slots"]["footer"]), 2)
+        c.post("/admin/ads/clear", data={"csrf": tok, "slot": "footer"})
+        self.assertEqual(json.loads((d / "ads.json").read_text())["slots"]["footer"], [])
+
     def test_admin_options_and_settings_editor(self):
         d, c = self.admin_client()
         tok = self.csrf(c)
@@ -289,7 +321,7 @@ class Web(unittest.TestCase):
         c.post("/admin/ads/options", data={"csrf": tok, "contact": "mailto:ads@example.org", "placeholders": "1"})
         self.assertIn("mailto:ads@example.org", c.get("/").get_data(as_text=True))
         c.post("/admin/ads/options", data={"csrf": tok, "contact": "mailto:ads@example.org"})        # placeholders unchecked
-        self.assertNotIn("Your ad could be here", c.get("/").get_data(as_text=True))
+        self.assertNotIn("Advertise with us", c.get("/").get_data(as_text=True))
         page = c.get("/admin/settings")
         self.assertEqual(page.status_code, 200)
         t2 = page.get_data(as_text=True).split("name='csrf' value='")[1].split("'")[0]
@@ -362,7 +394,7 @@ class Web(unittest.TestCase):
         self.assertNotIn("allow-same-origin", home)
         self.assertNotIn("<script>document.cookie</script>", home)                                   # only inside escaped srcdoc
         self.assertNotIn("Old campaign", home)                                                       # expired campaign hidden
-        self.assertIn("mailto:ads@example.org", home)                                                # placeholder for the expired footer slot
+        self.assertIn("mailto:ads@example.org", home)                                                # the footer "Advertise with us" link
         run = upload(c).headers["Location"]
         result = c.get(run).get_data(as_text=True)
         self.assertNotIn("javascript:alert", result)                                                 # unsafe link rejected
@@ -372,7 +404,7 @@ class Web(unittest.TestCase):
     def test_ads_file_reload_without_restart_and_bad_json(self):
         d, app = self.site(ads={"slots": {}, "placeholders": False})
         c = app.test_client()
-        self.assertNotIn("Your ad could be here", c.get("/").get_data(as_text=True))
+        self.assertNotIn("Advertise with us", c.get("/").get_data(as_text=True))
         time.sleep(0.02)
         (d / "ads.json").write_text(json.dumps({"slots": {"top": {"type": "text", "title": "Hello Ad", "body": "b", "href": "https://x.example.org"}}}))
         os.utime(d / "ads.json", (time.time() + 5, time.time() + 5))
@@ -414,6 +446,16 @@ class Web(unittest.TestCase):
         r = upload(c)
         run = r.headers["Location"].rsplit("/", 1)[1]
         self.assertNotIn("WITHOUT a secret", c.get(f"/runs/{run}").get_data(as_text=True))
+
+    def test_font_and_robots(self):
+        _, app = self.site()
+        c = app.test_client()
+        f = c.get("/static/figtree.woff2")
+        self.assertEqual(f.status_code, 200)
+        self.assertIn("immutable", f.headers["Cache-Control"])
+        self.assertIn("Disallow: /runs/", c.get("/robots.txt").get_data(as_text=True))
+        self.assertEqual(c.get("/runs/x").status_code, 404)
+
 
     def test_seo_foundation(self):
         _, app = self.site(env={"SWA_SITE_URL": "https://tools.example.org", "SWA_GSC_VERIFICATION": "abc123XYZ"})

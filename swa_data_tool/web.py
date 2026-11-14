@@ -13,6 +13,7 @@ Environment variables (all optional):
   SWA_MAX_MB           upload limit in MB (default 50)
   SWA_SITE_URL         public address, e.g. https://tools.swasamson.site (used for canonical links and the sitemap)
   SWA_GSC_VERIFICATION Google Search Console verification code (the content="..." value of the meta tag)
+  SWA_DATABASE_URL     PostgreSQL link (free Neon/Supabase) - ads are saved there too, so they survive restarts on any plan
   SWA_ADS_FILE         path to ads.json (default: ads.json next to config.yaml)
   SWA_ADS_DIR          folder with ad images (default: ads/ next to config.yaml)
   SWA_PROFILES_DIR     folder with extra analysis profiles (*.yaml) shown in a drop-down (default: profiles/)
@@ -37,18 +38,22 @@ from pathlib import Path
 from flask import Flask, Response, abort, g, redirect, request, send_file, send_from_directory
 
 from .ads import IMG_EXT, Ads
+from .ads_db import attach as attach_ads_db
 from .config import ConfigError, load_config
 from .pipeline import process_file
 from .webadmin import register_admin
 from .webui import ICON, SITE, SITE_UTM, frame
 
+DESCRIPTION = ("Upload a CSV, Excel or KoboToolbox export. Get verified pivot tables, charts and programme indicators in seconds. "
+               "Every figure is calculated twice.")
+_lock = threading.Lock()          # one analysis at a time (the pipeline logs to one shared logger)
+_purge = {"last": 0.0}
+HERE = Path(__file__).resolve().parent
 ALLOWED = {".csv", ".tsv", ".txt", ".xlsx", ".xlsm", ".xls", ".json"}
 RUN_ID = re.compile(r"^[A-Za-z0-9_\-]{1,200}$")
 SID_RE = re.compile(r"^[a-f0-9]{32}$")
 FILES = {"report.xlsx": "Excel report", "report.html": "HTML report", "clean_data.csv": "Clean data (CSV)",
          "quarantined_rows.csv": "Rejected rows (CSV)", "audit.json": "Audit record", "run.log": "Run log"}
-DESCRIPTION = ("Upload a CSV, Excel or KoboToolbox export. Get verified pivot tables, charts and programme indicators in seconds. "
-               "Every figure is calculated twice.")
 _lock = threading.Lock()          # one analysis at a time (the pipeline logs to one shared logger)
 _purge = {"last": 0.0}
 HERE = Path(__file__).resolve().parent
@@ -97,6 +102,7 @@ def create_app(config_path: str) -> Flask:
         data_dir.mkdir(parents=True, exist_ok=True)
         shutil.copy(cdir / "ads.json", ads_file)
     ads = Ads(ads_file)
+    attach_ads_db(ads, ads_dir)          # no-op unless SWA_DATABASE_URL / DATABASE_URL is set
     profiles_dir = Path(os.environ.get("SWA_PROFILES_DIR") or cdir / "profiles")
 
     # ------------------------------------------------------------------ helpers
@@ -154,7 +160,7 @@ def create_app(config_path: str) -> Flask:
         top = ads.render("top") if home else ""
         public = (home or index) and not noindex and status == 200
         html = frame(title, body, active=active, show_admin=admin_ok(), top_ad=top,
-                     footer_ad=ads.render("footer"), retention_hours=retention, noindex=not public, description=description,
+                     footer_ad=ads.render("footer"), advertise=ads.advertise_html(), retention_hours=retention, noindex=not public, description=description,
                      canonical=(base_url() + ("/" if home else request.path)) if public else "", jsonld=jsonld() if home and public else "",
                      gsc=os.environ.get("SWA_GSC_VERIFICATION", ""))
         return Response(html, status=status, mimetype="text/html")
@@ -360,6 +366,8 @@ but, as with any website, an advertiser whose content loads in your browser can 
 <h2>Contact</h2><p>Questions or requests about your data: contact the site owner through <a href='{SITE_UTM}' target='_blank' rel='noopener'>swasamson.site</a>.</p>
 </div>"""
         return render("Privacy", body, index=True, description="How SWA Data Analysis handles your uploaded files, results, cookies and advertising.")
+
+
 
     # ------------------------------------------------------------------ analyse
     @app.post("/analyse")
