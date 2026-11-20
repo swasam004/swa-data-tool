@@ -112,6 +112,9 @@ def build_html(ctx: dict) -> str:
         h.append("<p class='muted'>Personal data protected in this report: " + E(", ".join(f"{n} ({m})" for n, m in ctx["protected"])) + ".</p>")
     if ctx["warnings"]:
         h.append("<h2>Warnings</h2><ul>" + "".join(f"<li>{E(w)}</li>" for w in ctx["warnings"]) + "</ul>")
+    if ctx.get("extras"):
+        from .smart_report import html_sections
+        h.append(html_sections({"front": ctx["extras"].get("front", []), "back": []}))
     h.append("<h2>Integrity checks</h2>" + _table(
         ["Check", "Expected", "Actual", "Result"],
         [[c.name, c.expected, c.actual, "PASS" if c.passed else "FAIL"] for c in checks], 99))
@@ -182,6 +185,9 @@ def build_html(ctx: dict) -> str:
             [[s["column"], s["count"], s["missing"], _fmt(s["sum"], s["decimals"]), _fmt(s.get("mean"), max(s["decimals"], 2)),
               _fmt(s.get("median"), max(s["decimals"], 2)), _fmt(s.get("min"), s["decimals"]), _fmt(s.get("max"), s["decimals"])]
              for s in cr.stats]))
+    if ctx.get("extras"):
+        from .smart_report import html_sections
+        h.append(html_sections({"front": [], "back": ctx["extras"].get("back", [])}, names=("Compare Groups", "Correlations", "Trends", "Cleaning Log")))
     if cr.quarantine_breakdown:
         h.append("<h2>Why rows were quarantined</h2>" + _table(
             ["Column", "Problem", "Rows"], [[c, p, n] for c, p, n in cr.quarantine_breakdown], 2))

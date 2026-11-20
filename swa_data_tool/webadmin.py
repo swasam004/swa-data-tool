@@ -167,6 +167,8 @@ def register_admin(app, X):
             add("warn", "Settings have a problem", escape(str(exc)))
         uses_hash = False
         for _, (label, path) in X["profiles"]().items():
+            if path is None:
+                continue
             try:
                 if any(col.get("pii") == "hash" for col in X["cfg"](path)["columns"]):
                     uses_hash = True
@@ -190,6 +192,9 @@ def register_admin(app, X):
                 "Download a backup after each change (Backup section) and restore it if needed, or connect a free database by setting <code>SWA_DATABASE_URL</code> (see WEB_GUIDE).")
         else:
             add("info", "Ads storage", f"Saved in <code>{escape(str(ads.path))}</code>.")
+        from .smart_qa import ai_enabled
+        add("info", "Question helper (AI)", ("On: questions the built-in rules cannot understand are translated by an AI model (only column names and summary statistics are sent, never rows)."
+                                             if ai_enabled() else "Off: questions are answered by the built-in engine only. To enable AI wording help set SWA_AI_ENABLED=1 and ANTHROPIC_API_KEY."))
         add("info", "Results retention", (f"Visitor results are deleted after {X['retention']} hours." if X["retention"] else "Results are kept until you delete them."))
         if ads.contact == "https://swasamson.site":
             add("info", "Advertiser contact link", "Currently points to swasamson.site. Set an e-mail below (for example <code>mailto:you@example.com</code>) so advertisers can reach you.")

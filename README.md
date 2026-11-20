@@ -5,6 +5,9 @@ programme indicators), an HTML report, cleaned data, a list of rejected rows and
 Built for NGO and programme data (KoboToolbox/ODK exports, beneficiary registers, attendance, surveys) and
 works equally for sales, finance or any tabular data.
 
+## Smart analysis (any file, no setup) and questions
+See **SMART_GUIDE.md**: upload any Excel/CSV, get a full analysis, and ask questions in plain English.
+
 ## Run as a website
 `swa-tool serve --config config.yaml` starts a browser interface (upload a file → verified report). Deployment on
 Render, the advertising slots, visitor privacy and all environment variables are explained in **WEB_GUIDE.md**.

@@ -75,7 +75,8 @@ def _write_csv(path: Path, df: pd.DataFrame, dates: list[str], text_cols: set):
             w.writerow(out)
 
 
-def process_file(path, cfg: dict) -> RunResult:
+def process_file(path, cfg: dict, extras: dict | None = None, display_name: str | None = None) -> RunResult:
+    """extras (smart analysis): {"front": [sheet specs], "back": [sheet specs], "checks": [Check], "warnings": [str], "audit": dict}"""
     path = Path(path).resolve()
     now = _dt.datetime.now().astimezone()
     out_dir = _make_out_dir(cfg, path, now)
@@ -83,7 +84,7 @@ def process_file(path, cfg: dict) -> RunResult:
     fh.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
     log.addHandler(fh)
     audit = {"dataset_name": cfg["dataset_name"], "tool": f"SWA Data Analysis Tool {__version__}", "python": platform.python_version(), "pandas": pd.__version__,
-             "source_file": path.name, "run_time": now.isoformat(timespec="seconds"),
+             "source_file": display_name or path.name, "run_time": now.isoformat(timespec="seconds"),
              "config_file": Path(cfg["_config_path"]).name, "config_sha256": cfg["_config_sha256"]}
     try:
         log.info("Processing %s", path)
@@ -107,12 +108,15 @@ def process_file(path, cfg: dict) -> RunResult:
             cr.warnings.append("Personal data is hashed WITHOUT a secret 'privacy_salt' in the configuration; "
                                "anyone who can guess values (e.g. phone numbers) could recompute the codes. Set a long secret phrase.")
         checks = run_checks(cr, cfg, pivots_pd, pivots_ind, inds_pd, inds_ind)
+        if extras:
+            checks = list(checks) + list(extras.get("checks", []))
+            cr.warnings.extend(extras.get("warnings", []))
         failed = [c for c in checks if not c.passed]
 
         # Excel live-formula checks are added inside the workbook; python-side status first
         status = STATUS_FAIL if failed else (STATUS_WARN if cr.warnings else STATUS_OK)
         ctx = {"cfg": cfg, "cr": cr, "pivots": pivots_pd, "checks": checks, "status": status,
-               "warnings": cr.warnings, "source_name": path.name,
+               "warnings": cr.warnings, "source_name": display_name or path.name, "extras": extras or {},
                "indicators": inds_pd, "clean_out": clean_out, "quar_out": quar_out, "protected": protected, "sha256": audit["source_sha256"],
                "run_time": now.strftime("%Y-%m-%d %H:%M:%S %z"), "config_name": audit["config_file"]}
 
@@ -141,6 +145,7 @@ def process_file(path, cfg: dict) -> RunResult:
                                                   "d": i.sections[0][1][0].d} for i in inds_pd},
             "protected_columns": [{"column": n, "mode": m} for n, m in protected],
             "completeness": cr.completeness,
+            "smart": (extras or {}).get("audit"),
             "outputs": files + ["audit.json", "run.log"],
         })
         (out_dir / "audit.json").write_text(json.dumps(audit, indent=2, default=str), encoding="utf-8")

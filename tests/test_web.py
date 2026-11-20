@@ -513,3 +513,105 @@ class Web(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+class WebSmart(unittest.TestCase):
+    """Smart analysis through the website."""
+
+    def setUp(self):
+        self.addCleanup(lambda: [os.environ.pop(k, None) for k in ("SWA_SECRET", "SWA_ADMIN_PASSWORD", "SWA_PASSWORD", "SWA_RETENTION_HOURS", "SWA_AI_ENABLED", "ANTHROPIC_API_KEY")])
+        sys.path.insert(0, str(ROOT / "tests"))
+        from test_smart import make_exam_workbook
+        self.tmp = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, self.tmp, True)
+        make_exam_workbook(self.tmp / "exam.xlsx")
+        self.xlsx = (self.tmp / "exam.xlsx").read_bytes()
+        d, self.app = make_site()
+        self.addCleanup(shutil.rmtree, d, True)
+
+    def smart_upload(self, c, questions="", title=""):
+        form = {"csrf": token(c), "title": title, "profile": "smart", "questions": questions, "file": (io.BytesIO(self.xlsx), "exam.xlsx")}
+        return c.post("/analyse", data=form, content_type="multipart/form-data")
+
+    def test_home_offers_smart_first_and_a_questions_box(self):
+        html = self.app.test_client().get("/").get_data(as_text=True)
+        self.assertLess(html.index("Smart analysis"), html.index("Structured register"))
+        self.assertIn("name='questions'", html)
+        self.assertIn("no setup", html.lower())
+
+    def test_upload_workbook_shows_answers_and_ask_box(self):
+        c = self.app.test_client()
+        r = self.smart_upload(c, questions="How many automatic cars are there?\n<script>alert(1)</script>", title="Cars <b>exam</b>")
+        self.assertEqual(r.status_code, 302)
+        page = c.get(r.headers["Location"]).get_data(as_text=True)
+        self.assertIn("Answers", page)
+        self.assertIn("calculated twice, both agree", page)
+        self.assertIn("Ask your data a question", page)
+        self.assertIn("What&#x27;s the most popular car manufacturer?", page.replace("&#39;", "&#x27;"))        # question read from the workbook
+        self.assertNotIn("<script>alert(1)</script>", page)                                            # typed text is escaped
+        self.assertIn("Cars &lt;b&gt;exam&lt;/b&gt;", page)
+        self.assertIn("Analysed table: sheet", page)
+
+    def test_ask_endpoint_json_csrf_and_isolation(self):
+        a, b = self.app.test_client(), self.app.test_client()
+        loc = self.smart_upload(a).headers["Location"]
+        run = loc.rsplit("/", 1)[1]
+        page = a.get(loc).get_data(as_text=True)
+        tok = page.split("name='csrf' value='")[1].split("'")[0]
+        hdr = {"X-Requested-With": "fetch"}
+        r = a.post(f"/runs/{run}/ask", data={"csrf": tok, "q": "How many cars are there?"}, headers=hdr)
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("40", r.get_json()["html"])
+        self.assertIn("both agree", r.get_json()["html"])
+        self.assertEqual(a.post(f"/runs/{run}/ask", data={"q": "How many cars are there?"}, headers=hdr).status_code, 400)        # no CSRF
+        self.assertEqual(b.post(f"/runs/{run}/ask", data={"csrf": tok, "q": "x"}, headers=hdr).status_code, 404)                   # other visitor
+        weird = a.post(f"/runs/{run}/ask", data={"csrf": tok, "q": "<img src=x onerror=alert(1)> ???"}, headers=hdr)
+        self.assertEqual(weird.status_code, 200)
+        self.assertNotIn("<img src=x", weird.get_json()["html"])
+        # without JavaScript the form still works
+        plain = a.post(f"/runs/{run}/ask", data={"csrf": tok, "q": "average price per owner"})
+        self.assertIn("Your answer", plain.get_data(as_text=True))
+        self.assertIn("noindex", plain.get_data(as_text=True))
+
+    def test_ask_rate_limit(self):
+        c = self.app.test_client()
+        loc = self.smart_upload(c).headers["Location"]
+        run = loc.rsplit("/", 1)[1]
+        tok = c.get(loc).get_data(as_text=True).split("name='csrf' value='")[1].split("'")[0]
+        codes = [c.post(f"/runs/{run}/ask", data={"csrf": tok, "q": "how many cars"}, headers={"X-Requested-With": "fetch"}).status_code for _ in range(62)]
+        self.assertEqual(codes.count(200), 60)
+        self.assertEqual(codes[-1], 429)
+
+    def test_ask_not_available_for_structured_runs(self):
+        c = self.app.test_client()
+        run = upload(c).headers["Location"]
+        tok = token(c)
+        r = c.post(f"{run}/ask", data={"csrf": tok, "q": "how many"}, headers={"X-Requested-With": "fetch"})
+        self.assertEqual(r.status_code, 400)
+        self.assertNotIn("Ask your data a question", c.get(run).get_data(as_text=True))
+
+    def test_unusable_file_gives_clear_message(self):
+        c = self.app.test_client()
+        form = {"csrf": token(c), "profile": "smart", "file": (io.BytesIO(b"hello\n"), "bad.csv")}
+        r = c.post("/analyse", data=form, content_type="multipart/form-data")
+        page = c.get(r.headers["Location"]).get_data(as_text=True)
+        self.assertIn("Could not process", page)
+        self.assertNotIn("Excel report", page)
+
+    def test_privacy_text_reflects_ai_setting(self):
+        c = self.app.test_client()
+        self.assertIn("Nothing you type or upload is sent to an AI service", c.get("/privacy").get_data(as_text=True))
+        os.environ["SWA_AI_ENABLED"], os.environ["ANTHROPIC_API_KEY"] = "1", "k"
+        p = c.get("/privacy").get_data(as_text=True)
+        self.assertIn("Anthropic", p)
+        self.assertIn("never your rows", p)
+
+    def test_admin_checklist_shows_ai_status(self):
+        os.environ["SWA_ADMIN_PASSWORD"] = "s3cret"
+        d, app = make_site(env={"SWA_ADMIN_PASSWORD": "s3cret"})
+        self.addCleanup(shutil.rmtree, d, True)
+        c = app.test_client()
+        tok = c.get("/admin/login").get_data(as_text=True).split("name='csrf' value='")[1].split("'")[0]
+        c.post("/admin/login", data={"csrf": tok, "password": "s3cret"})
+        page = c.get("/admin").get_data(as_text=True)
+        self.assertIn("Question helper (AI)", page)
+        self.assertEqual(c.get("/admin").status_code, 200)

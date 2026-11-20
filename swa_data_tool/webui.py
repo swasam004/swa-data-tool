@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from html import escape
 
+from .smart_web import SMART_CSS
+
 SITE = "https://swasamson.site"
 SITE_UTM = SITE + "/?utm_source=swa-data-tool&utm_medium=app&utm_campaign=powered-by"
 
@@ -182,13 +184,29 @@ document.documentElement.classList.add('js');
   if(x.size>max){err.textContent='That file is too large ('+human(x.size)+'). The limit is '+human(max)+'.';f.value='';go.disabled=true;return}
   nm.textContent=x.name;sz.textContent=human(x.size)+' - ready to analyse';chip.classList.add('on');prompt.style.display='none';go.disabled=false}
  f.addEventListener('change',show);
- drop.addEventListener('click',function(e){if(e.target.closest('button,select,input,label,a'))return;f.click()});
+ drop.addEventListener('click',function(e){if(e.target.closest('button,select,input,label,a,textarea,summary,details'))return;f.click()});
  ['dragenter','dragover'].forEach(function(ev){drop.addEventListener(ev,function(e){e.preventDefault();drop.classList.add('over')})});
  ['dragleave','drop'].forEach(function(ev){drop.addEventListener(ev,function(e){e.preventDefault();drop.classList.remove('over')})});
  drop.addEventListener('drop',function(e){if(e.dataTransfer&&e.dataTransfer.files.length){f.files=e.dataTransfer.files;show()}});
  var cta=document.getElementById('cta');if(cta)cta.addEventListener('click',function(e){e.preventDefault();drop.scrollIntoView({behavior:rm?'auto':'smooth',block:'center'});setTimeout(function(){f.click()},rm?0:450)});
  var tips=['Rejected rows are listed with the reason, so nothing disappears silently.','Every figure is calculated twice by independent methods.','Personal data columns can be hashed or masked in all outputs.','Your uploaded file is deleted as soon as the analysis ends.'],ti=0,tp=document.getElementById('tip');
  document.getElementById('f').addEventListener('submit',function(){document.getElementById('overlay').classList.add('on');go.disabled=true;if(tp)setInterval(function(){ti=(ti+1)%tips.length;tp.textContent=tips[ti]},2600)});
+})();
+(function(){
+ var af=document.getElementById('askform');
+ if(af){
+  var out=document.getElementById('askout'),inp=af.querySelector('.askin');
+  document.querySelectorAll('.qchip').forEach(function(b){b.addEventListener('click',function(){inp.value=b.textContent;inp.focus()})});
+  af.addEventListener('submit',function(e){
+   if(!window.fetch){return}
+   e.preventDefault();var q=inp.value.trim();if(!q)return;
+   var ph=document.createElement('div');ph.innerHTML="<p class='keep'><span class='spin'></span> Working it out and double-checking&hellip;</p>";out.insertBefore(ph,out.firstChild);
+   fetch(af.getAttribute('data-url'),{method:'POST',body:new FormData(af),headers:{'X-Requested-With':'fetch'},credentials:'same-origin'})
+    .then(function(r){return r.json()}).then(function(j){ph.outerHTML=j.html;inp.value='';inp.focus()})
+    .catch(function(){ph.innerHTML="<div class='acard no'><p class='ah' style='font-size:1.05rem'>Something went wrong. Please try again.</p></div>"});
+  });
+ }
+
 })();
 """
 
@@ -210,7 +228,7 @@ def frame(title: str, body: str, *, active: str = "", show_admin: bool = False, 
 <title>{escape(title)} | SWA Data Analysis</title><meta name='description' content='{escape(desc, quote=True)}'>{robots}
 {seo}<meta name='theme-color' content='#050b1d'><meta property='og:title' content='{escape(title, quote=True)} | SWA Data Analysis'><meta property='og:site_name' content='SWA Data Analysis'><meta name='twitter:card' content='summary'>
 <meta property='og:description' content='{escape(desc, quote=True)}'><meta property='og:type' content='website'>
-<link rel='icon' href="{FAVICON}"><style>{CSS}</style></head><body>
+<link rel='icon' href="{FAVICON}"><style>{CSS}{SMART_CSS}</style></head><body>
 <a class='skip' href='#content'>Skip to content</a><div class='bg'><div class='orb a'></div><div class='orb b'></div></div>
 <header class='top'><div class='bar'><a class='brand' href='/'>{ICON['logo']}<span>SWA Data Analysis</span></a>
 <nav class='main'>{nav}<a class='pill' href='{SITE_UTM}' target='_blank' rel='noopener'>swasamson.site {ICON['ext']}</a></nav></div></header>

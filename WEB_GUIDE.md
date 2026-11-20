@@ -63,3 +63,6 @@ swa-tool serve --config config.yaml        # http://127.0.0.1:8080  (Settings op
 * The free plan has ~512 MB RAM: very large files (tens of MB) may fail. Lower `SWA_MAX_MB` if needed.
 * The page expects the columns described by `config.yaml` (or the chosen profile). A file with other headers is
   rejected with a clear message. Automatic column detection for arbitrary files is not part of this version.
+
+## Smart analysis & questions
+See **SMART_GUIDE.md**. New optional variables: `SWA_AI_ENABLED`, `ANTHROPIC_API_KEY`, `SWA_AI_MODEL`.

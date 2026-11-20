@@ -35,16 +35,19 @@ import zipfile
 from html import escape
 from pathlib import Path
 
-from flask import Flask, Response, abort, g, redirect, request, send_file, send_from_directory
+from flask import Flask, Response, abort, g, jsonify, redirect, request, send_file, send_from_directory
 
 from .ads import IMG_EXT, Ads
 from .ads_db import attach as attach_ads_db
 from .config import ConfigError, load_config
 from .pipeline import process_file
+from .smart import load_qa_context, load_state, run_smart
+from .smart_qa import ai_enabled, ask as smart_ask
+from .smart_web import answer_card, _meta as smart_meta, smart_panels
 from .webadmin import register_admin
 from .webui import ICON, SITE, SITE_UTM, frame
 
-DESCRIPTION = ("Upload a CSV, Excel or KoboToolbox export. Get verified pivot tables, charts and programme indicators in seconds. "
+DESCRIPTION = ("Upload a CSV, Excel or KoboToolbox file. Get verified pivot tables, charts and insights, and ask questions in plain English. "
                "Every figure is calculated twice.")
 _lock = threading.Lock()          # one analysis at a time (the pipeline logs to one shared logger)
 _purge = {"last": 0.0}
@@ -110,7 +113,7 @@ def create_app(config_path: str) -> Flask:
         return load_config(path or config_path)
 
     def profiles() -> dict:
-        out = {"standard": ("Standard analysis", config_path)}
+        out = {"smart": ("Smart analysis - any file, no setup", None), "standard": ("Structured register (uses settings)", config_path)}
         if profiles_dir.is_dir():
             for p in sorted(list(profiles_dir.glob("*.yaml")) + list(profiles_dir.glob("*.yml"))):
                 key = re.sub(r"[^a-z0-9_\-]", "", p.stem.lower())
@@ -152,7 +155,7 @@ def create_app(config_path: str) -> Flask:
                 "description": DESCRIPTION, "applicationCategory": "BusinessApplication", "operatingSystem": "Any (web browser)",
                 "browserRequirements": "Requires JavaScript", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
                 "creator": {"@type": "Organization", "name": "swasamson.site", "url": SITE},
-                "featureList": ["Pivot tables and charts", "Programme indicators with disaggregation", "Integrity checks (every figure calculated twice)",
+                "featureList": ["Works with any Excel or CSV file, no setup", "Ask questions in plain English", "Pivot tables and charts", "Programme indicators with disaggregation", "Integrity checks (every figure calculated twice)",
                                 "Personal data masking", "KoboToolbox and ODK exports"]}
         return json.dumps(data).replace("</", "<\\/")
 
@@ -269,6 +272,9 @@ def create_app(config_path: str) -> Flask:
             select = ("<select class='prof' name='profile' id='prof' aria-label='Type of data'>"
                       + "".join(f"<option value='{escape(k)}'>{escape(v[0])}</option>" for k, v in profs.items()) + "</select>")
         for i, (k, (label, path)) in enumerate(profs.items()):
+            if path is None:
+                col_notes += f"<p data-prof='{escape(k)}'><b>{escape(label)}:</b> none needed. The table, its column names and types are found automatically, and a lookup sheet is joined if there is one. Questions written in the workbook are answered too.</p>"
+                continue
             try:
                 names = ", ".join(escape(str(x["name"])) for x in cfg(path)["columns"])
             except ConfigError:
@@ -277,14 +283,14 @@ def create_app(config_path: str) -> Flask:
         body = f"""<section class='hero'>
 <span class='eyebrow'><i></i> Verified data analysis for NGOs, researchers &amp; teams</span>
 <h1 class='big'>Turn raw data into <span class='grad'>verified insights</span></h1>
-<p class='lead'>Upload a CSV, Excel or JSON file. Get pivot tables, charts, programme indicators and a full integrity check &mdash; in seconds.</p>
+<p class='lead'>Upload any Excel, CSV or JSON file &mdash; no setup. Get pivot tables, charts and insights, and ask questions in plain English. Every figure is checked twice.</p>
 <a class='btn' id='cta' href='#drop'>{ICON['upload']} Upload your data</a>
 <div class='trust'><span>{ICON['check2']} Every figure calculated twice</span><span>{ICON['shield']} Personal data can be masked</span><span>{ICON['check2']} File deleted right after analysis</span></div>
 </section>
 <section class='stage reveal' aria-label='Upload'>
 <div class='chip c1'><small>Pivot tables</small><div class='bars'><i></i><i></i><i></i><i></i><i></i></div></div>
 <div class='chip c2'><small>Integrity checks</small><b>&#10003; PASSED</b></div>
-<div class='chip c3'><small>Indicators</small>by sex, age &amp; location</div>
+<div class='chip c3'><small>Ask a question</small>&ldquo;Average price per owner?&rdquo;</div>
 <div class='chip c4'><small>Reports</small>Excel + HTML</div>
 <form id='f' method='post' action='/analyse' enctype='multipart/form-data'>
 <input type='hidden' name='csrf' value='{token()}'>
@@ -292,6 +298,8 @@ def create_app(config_path: str) -> Flask:
 <div class='prompt' id='prompt'><span>Drop your CSV, Excel or JSON file here</span><i class='caret'></i></div>
 <div class='file' id='chip'>{ICON['sheet']}<div><b id='fname'></b><small id='fsize'></small></div></div>
 <input class='title-in' name='title' maxlength='100' placeholder='Name this analysis (optional) &mdash; e.g. Q3 Outreach Report' autocomplete='off' aria-label='Name this analysis (optional)'>
+<details class='askbox'><summary>&#43; Ask questions about your data (optional)</summary>
+<textarea name='questions' maxlength='3000' placeholder='One question per line, for example:&#10;What is the most popular category?&#10;What is the average price per owner?&#10;Is price related to km driven?' aria-label='Questions about your data'></textarea></details>
 <div class='err' id='err' role='alert'></div>
 <div class='row'>
 <input id='file' name='file' type='file' class='sr-only' accept='.csv,.tsv,.txt,.xlsx,.xlsm,.xls,.json' required>
@@ -309,16 +317,16 @@ def create_app(config_path: str) -> Flask:
 <section class='sec' id='features'><h2 class='reveal'>Built so you can trust the numbers</h2>
 <p class='sub reveal'>Analysis mistakes are expensive. Every run is checked before you see it.</p>
 <div class='grid4'>
-<div class='card reveal'><div class='ico i1'>{ICON['check2']}</div><h3>Calculated twice</h3><p>Pivots and indicators are computed by two independent methods. Any disagreement stops the report.</p></div>
+<div class='card reveal'><div class='ico i1'>{ICON['check2']}</div><h3>Calculated twice</h3><p>Pivots, indicators and every answer are computed by two independent methods. Any disagreement stops the result.</p></div>
 <div class='card reveal'><div class='ico i2'>{ICON['shield']}</div><h3>Privacy controls</h3><p>Hash, mask or drop names and phone numbers in every output, including rejected rows.</p></div>
-<div class='card reveal'><div class='ico i3'>{ICON['kobo']}</div><h3>Kobo &amp; ODK ready</h3><p>Understands survey exports: group headers, timestamps and multi-select questions.</p></div>
+<div class='card reveal'><div class='ico i3'>{ICON['kobo']}</div><h3>Any file, no setup</h3><p>Finds the table in messy Excel files, cleans it, joins lookup sheets and explains every change. Kobo and ODK exports work too.</p></div>
 <div class='card reveal'><div class='ico i4'>{ICON['sheet']}</div><h3>Reports you can share</h3><p>Excel with live formulas and charts, plus a single-page HTML report for e-mail.</p></div>
 </div></section>
 <section class='sec' id='how'><h2 class='reveal'>From raw file to verified report in 3 steps</h2><p class='sub reveal'>No setup on your side &mdash; just your data.</p>
 <div class='steps'>
 <div class='card step reveal'><h3>Upload</h3><p>Drop a CSV, Excel or JSON file. Optionally give the analysis a name.</p></div>
-<div class='card step reveal'><h3>We clean &amp; verify</h3><p>Bad rows are set aside with reasons, never silently changed. Totals must reconcile.</p></div>
-<div class='card step reveal'><h3>Download</h3><p>Get the Excel and HTML reports, clean data, rejected rows and an audit record.</p></div>
+<div class='card step reveal'><h3>We analyse &amp; verify</h3><p>Tables are found automatically, every change is logged, and every number is calculated twice.</p></div>
+<div class='card step reveal'><h3>Ask &amp; download</h3><p>Ask questions in plain English, then download the Excel and HTML reports and the audit record.</p></div>
 </div></section>
 <section class='promo reveal'><div><h3>More from swasamson.site</h3><p>Tools, projects and resources for data, community programming and digital skills. Come and take a look.</p></div>
 <a class='btn' href='{SITE_UTM}' target='_blank' rel='noopener'>Visit swasamson.site {ICON['ext']}</a></section>"""
@@ -349,6 +357,9 @@ Results are only as representative as the data you upload.</p>
 
     @app.get("/privacy")
     def privacy():
+        ai_text = ("Questions are answered by this site's own calculation engine. If a question cannot be understood by the built-in rules, an AI model (Anthropic's Claude) may be asked to translate it into a calculation. "
+                   "Only the question text, column names and summary statistics are sent - never your rows or columns that contain personal data. The numbers themselves are always calculated and double-checked here."
+                   if ai_enabled() else "Questions are answered entirely by this site's own calculation engine. Nothing you type or upload is sent to an AI service.")
         keep = (f"Results are deleted automatically {retention} hours after they are created." if retention
                 else "Results stay on the server until the site owner deletes them.")
         body = f"""<section class='pagehead'><h1>Privacy</h1><p>What happens to your data on this site.</p></section>
@@ -360,6 +371,7 @@ Results are only as representative as the data you upload.</p>
 depending on how the analysis profile is configured. Do not upload personal data unless you are allowed to share it and understand how the profile treats it.</p>
 <h2>Cookies</h2><p>The site uses one small functional cookie (<code>swa_sid</code>) so your results stay private to your browser. The site owner has a separate sign-in cookie for the admin area.
 There are no tracking or analytics cookies set by this site.</p>
+<h2>Questions you type</h2><p>{ai_text}</p>
 <h2>Advertising</h2><p>Some pages show advertisements. Image and text ads link to the advertiser's site. Embedded ad code runs in an isolated frame that cannot read your uploads, results or cookies,
 but, as with any website, an advertiser whose content loads in your browser can see your IP address and browser details.</p>
 <h2>Logs</h2><p>Like most hosting services, the host may keep technical logs (such as IP addresses and requested pages) for security and operation.</p>
@@ -383,7 +395,20 @@ but, as with any website, an advertiser whose content loads in your browser can 
         stem = re.sub(r"[^A-Za-z0-9_\-]+", "_", Path(up.filename).stem)[:60] or "upload"
         key = request.form.get("profile", "standard")
         profs = profiles()
-        path = profs.get(key, profs["standard"])[1]
+        if key == "smart":
+            title = re.sub(r"[\x00-\x1f\x7f]", " ", request.form.get("title", "")).strip()[:100] or pretty(Path(up.filename).stem)[:80] or "Data analysis"
+            qs = [re.sub(r"[\x00-\x1f\x7f]", " ", q).strip()[:300] for q in request.form.get("questions", "").splitlines() if q.strip()][:20]
+            try:
+                salt = cfg()["privacy_salt"]
+            except ConfigError:
+                salt = os.environ.get("SWA_PRIVACY_SALT", "")
+            with _lock, tempfile.TemporaryDirectory() as tmp:
+                src = Path(tmp) / f"{stem}{suffix}"
+                up.save(src)
+                my_dir().mkdir(parents=True, exist_ok=True)
+                res = run_smart(src, my_dir(), title, qs, display_name=Path(up.filename).name[:100], salt=salt)
+            return redirect(f"/runs/{res.out_dir.name}")
+        path = (profs.get(key) or profs["standard"])[1]
         try:
             c = cfg(path)
         except ConfigError as exc:
@@ -434,15 +459,47 @@ but, as with any website, an advertiser whose content loads in your browser can 
         view = (f"<div class='reportbox'><iframe src='/runs/{run_id}/view' title='Report' sandbox referrerpolicy='no-referrer'></iframe></div>"
                 f"<p class='keep'><a href='/runs/{run_id}/view' target='_blank' rel='noopener'>Open the report in a full page</a></p>") if (d / "report.html").exists() else ""
         keep = f"This result is deleted automatically after {retention} hours." if retention else ""
+        smart_html = ""
+        state = load_state(d)
+        if state and not audit.get("error"):
+            smart_html = smart_panels(state, run_id, token(), ai_enabled())
         name = escape(audit.get("dataset_name") or "Your analysis")
         when = escape(str(audit.get("run_time", "")).replace("T", " ")[:16])
         body = f"""<section class='pagehead'><span class='status {cls}'>{escape(status)}</span>
 <h1>{name}</h1><p>Analysis ready &middot; {escape(audit.get('source_file', ''))} &middot; {when}</p></section>
-<div class='stats'>{stats}</div>{msg}
+<div class='stats'>{stats}</div>{msg}{smart_html}
 <div class='panel'><h2>Download your results</h2><div class='dl'>{btns}</div><p class='keep' style='text-align:left'>{escape(keep)}</p></div>
 {view}{ads.render('result_below')}
 <p style='text-align:center;margin-top:26px'><a class='btn' href='/'>{ICON['upload']} Analyse another file</a></p>"""
         return render("Result", body, active="home", noindex=True)
+
+    asks: dict = {}
+
+    @app.post("/runs/<run_id>/ask")
+    def ask_route(run_id):
+        d = run_dir(run_id)
+        want_json = request.headers.get("X-Requested-With") == "fetch"
+        if not csrf_ok():
+            return (jsonify(html="<div class='acard no'><p class='ah' style='font-size:1.05rem'>Your session expired. Reload the page.</p></div>"), 400) if want_json \
+                else message("Please try again", "Your session expired. Reload the results page.", 400)
+        now = time.time()
+        hits = [t for t in asks.get(g.sid, []) if now - t < 3600]
+        if len(hits) >= 60:
+            html = "<div class='acard no'><p class='ah' style='font-size:1.05rem'>You have asked a lot of questions in the last hour. Please wait a little.</p></div>"
+            return (jsonify(html=html), 429) if want_json else message("Slow down a little", "Please wait a few minutes and try again.", 429)
+        asks[g.sid] = hits + [now]
+        q = re.sub(r"[\x00-\x1f\x7f]", " ", request.form.get("q", "")).strip()[:300]
+        ctx = load_qa_context(d)
+        if ctx is None:
+            html = "<div class='acard no'><p class='ah' style='font-size:1.05rem'>Questions are only available for Smart analysis results.</p></div>"
+            return (jsonify(html=html), 400) if want_json else message("Not available", "Questions are only available for Smart analysis results.", 400)
+        ans = smart_ask(q, ctx).to_dict()
+        html = answer_card(ans, smart_meta(load_state(d)))
+        if want_json:
+            return jsonify(html=html)
+        body = (f"<section class='pagehead'><h1>Your answer</h1></section><div class='panel'>{html}</div>"
+                f"<p style='text-align:center'><a class='btn' href='/runs/{escape(run_id)}'>Back to results</a></p>")
+        return render("Answer", body, noindex=True)
 
     @app.get("/runs/<run_id>/view")
     def view_report(run_id):

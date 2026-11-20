@@ -86,11 +86,14 @@ def write_workbook(path, ctx: dict) -> dict:
 
     used: set = set()
     ws_sum = wb.add_worksheet(sheet_name_for("Summary", used))
+    extras = ctx.get("extras") or {}
+    front_ws = [(spec, wb.add_worksheet(sheet_name_for(spec["name"], used))) for spec in extras.get("front", [])]
     ws_chk = wb.add_worksheet(sheet_name_for("Checks", used))
     pivot_ws = [(pr, wb.add_worksheet(sheet_name_for(pr.spec["name"], used))) for pr in pivots]
     ws_ind = wb.add_worksheet(sheet_name_for("Indicators", used)) if ctx["indicators"] else None
     ws_stats = wb.add_worksheet(sheet_name_for("Summary Stats", used))
     ws_dq = wb.add_worksheet(sheet_name_for("Data Quality", used))
+    back_ws = [(spec, wb.add_worksheet(sheet_name_for(spec["name"], used))) for spec in extras.get("back", [])]
     ws_data = wb.add_worksheet(sheet_name_for("Clean Data", used)) if can_write_data else None
     ws_quar = wb.add_worksheet(sheet_name_for("Quarantined Rows", used))
 
@@ -666,6 +669,9 @@ def write_workbook(path, ctx: dict) -> dict:
     if len(qd):
         ws_quar.autofilter(0, 0, len(qd), len(qcols) - 1)
 
+    from .smart_report import write_extra_sheet
+    for spec, w in front_ws + back_ws:
+        write_extra_sheet(wb, w, spec, fmt)
     for w in wb.worksheets():            # print-friendly: landscape, one page wide
         w.set_landscape()
         w.set_paper(9)
